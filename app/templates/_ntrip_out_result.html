@@ -1,0 +1,36 @@
+<div id="ntrip-out-actions" class="submit-row">
+    {% if connected %}
+        <button type="button"
+                class="primary"
+                hx-post="/ntrip-out/disconnect"
+                hx-target="#ntrip-out-actions"
+                hx-swap="outerHTML"
+                hx-disabled-elt="this">Disconnect</button>
+    {% else %}
+        <button type="button"
+                id="ntrip-out-connect-btn"
+                class="primary"
+                hx-post="/ntrip-out/connect"
+                hx-include="#ntrip-out-form"
+                hx-target="#ntrip-out-actions"
+                hx-swap="outerHTML"
+                hx-indicator="#ntrip-out-spinner"
+                hx-validate="true"
+                hx-disabled-elt="this">Connect</button>
+        <span id="ntrip-out-spinner" class="htmx-indicator">
+            <span class="spinner"></span> Connecting&hellip;
+        </span>
+    {% endif %}
+</div>
+<div id="result"
+     hx-swap-oob="true"
+     class="card {% if ok %}result-ok{% else %}result-error{% endif %}">
+    <strong>
+        {% if ok %}
+            Success
+        {% else %}
+            Error
+        {% endif %}
+    </strong>
+    <pre>{{ message }}</pre>
+</div>

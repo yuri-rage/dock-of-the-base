@@ -1,0 +1,157 @@
+<div id="status-card"
+     class="card"
+     hx-get="/status"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     data-svin-active="{{ 'true' if state.svin_active else 'false' }}"
+     {% if state.svin_active %}data-svin-acc="{{ state.svin_mean_acc_m }}" data-svin-obs="{{ state.svin_obs }}"{% endif %}
+     {% if acc_limit is not none %}data-svin-acc-limit="{{ acc_limit }}"{% endif %}
+     {% if state.svin_ecef_x is not none %} data-ecef-x="{{ state.svin_ecef_x }}" data-ecef-y="{{ state.svin_ecef_y }}" data-ecef-z="{{ state.svin_ecef_z }}" {% endif %}>
+    <div class="status-header">
+        <span class="status-dot {% if state.connected %}dot-ok{% else %}dot-err{% endif %}"></span>
+        <strong>
+            {% if state.connected %}
+                Connected — {{ state.port }}
+            {% else %}
+                Disconnected
+            {% endif %}
+        </strong>
+    </div>
+    {% if state.connected %}
+        <table class="receiver-info" style="margin-top: 0.75rem">
+            <tr>
+                <td>Time mode</td>
+                <td>
+                    {% if state.tmode is not none %}
+                        {{ tmode_names.get(state.tmode, state.tmode) }}
+                        {% if state.tmode == 1 and state.svin_active %}
+                            — Active
+                            <br />
+                            Observations: {{ state.svin_obs }}
+                            <br />
+                            Mean 3D StdDev: {{ "%.02f"|format(state.svin_mean_acc_m) }} m
+                        {% elif state.tmode == 1 and state.svin_valid %}
+                            — complete
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>Fix type</td>
+                <td>
+                    {{ fix_types.get(state.fix_type, "—") }}
+                    {% if state.carrier_solution %}/ {{ carrier_solution_types.get(state.carrier_solution, "—") }}{% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>Position</td>
+                <td>
+                    {% if state.lat is not none %}
+                        {{ state.lat | dms("lat") }}
+                        <br />
+                        {{ state.lon | dms("lon") }}
+                        <br />
+                        <span class="additional-info">
+                            {{ "%.02f"|format(state.height_m) }} m ({{ "%.1f"|format(state.height_m | m_to_ft) }} ft) HAE
+                            <br />
+                        {{ "%.02f"|format(state.height_msl_m) }} m ({{ "%.1f"|format(state.height_msl_m | m_to_ft) }} ft) MSL</span>
+                        <span class="additional-info muted">
+                            {{ "%.07f"|format(state.lat) }}
+                            <br />
+                            {{ "%.07f"|format(state.lon) }}
+                            <br />
+                        </span>
+                        {% if state.svin_ecef_x is not none %}
+                            <span class="additional-info muted">
+                                X {{ "%.04f"|format(state.svin_ecef_x) }} m
+                                <br />
+                                Y {{ "%.04f"|format(state.svin_ecef_y) }} m
+                                <br />
+                                Z {{ "%.04f"|format(state.svin_ecef_z) }} m
+                            </span>
+                        {% endif %}
+                        <span class="additional-info">
+                            <a href="{{ state.lat | google_maps_link(state.lon) }}" target="_blank">View on Google Maps</a></span>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+            {% if state.tmode != 2 and state.h_acc_m is not none %}
+                <tr>
+                    <td>Accuracy</td>
+                    <td class="muted">
+                        hAcc: ±{{ "%.03f"|format(state.h_acc_m) }} m
+                        <br />
+                        vAcc: ±{{ "%.03f"|format(state.v_acc_m) }} m
+                    </td>
+                </tr>
+            {% endif %}
+            {% if state.tmode != 2 and state.hdop is not none %}
+                <tr>
+                    <td>Geometry</td>
+                    <td class="muted">
+                        hDOP: {{ "%.02f"|format(state.hdop) }}
+                        <br />
+                        vDOP: {{ "%.02f"|format(state.vdop) }}
+                        <br />
+                        pDOP: {{ "%.02f"|format(state.pdop) }}
+                    </td>
+                </tr>
+            {% endif %}
+            <tr>
+                <td>Satellites</td>
+                <td>{{ state.num_sv if state.num_sv else "—" }}</td>
+            </tr>
+        </table>
+    {% endif %}
+    <hr />
+    <div class="status-header" style="margin-top: 0.5rem">
+        <span class="status-dot {% if tcp_port %}dot-ok{% else %}dot-err{% endif %}"></span>
+        <span class="muted">
+            {% if tcp_port %}
+                TCP :{{ tcp_port }} &mdash; {{ tcp_clients }}
+                client{{ "s" if tcp_clients != 1 }}
+            {% else %}
+                TCP &mdash; disabled
+            {% endif %}
+        </span>
+    </div>
+    <div class="status-header" style="margin-top: 0.5rem">
+        <span class="status-dot {% if ntrip_port %}dot-ok{% else %}dot-err{% endif %}"></span>
+        <span class="muted">
+            {% if ntrip_port %}
+                NTRIP :{{ ntrip_port }}/{{ ntrip_mount }}
+                &mdash; {{ ntrip_clients }} client{{ "s" if ntrip_clients != 1 }}
+            {% else %}
+                NTRIP local &mdash; disabled
+            {% endif %}
+        </span>
+    </div>
+    {% if ntrip_out_connected is not none %}
+        <div class="status-header" style="margin-top: 0.5rem">
+            <span class="status-dot {% if ntrip_out_connected %}dot-ok{% else %}dot-err{% endif %}"></span>
+            <span class="muted">NTRIP out &mdash;
+                {% if ntrip_out_connected %}
+                    casting
+                {% else %}
+                    disconnected
+                {% endif %}
+            </span>
+        </div>
+    {% endif %}
+    {% if ntrip_in_connected is not none and state.tmode != 2 %}
+        <div class="status-header" style="margin-top: 0.5rem">
+            <span class="status-dot {% if ntrip_in_connected %}dot-ok{% else %}dot-err{% endif %}"></span>
+            <span class="muted">NTRIP in &mdash;
+                {% if ntrip_in_connected %}
+                    receiving corrections
+                {% else %}
+                    disconnected
+                {% endif %}
+            </span>
+        </div>
+    {% endif %}
+</div>

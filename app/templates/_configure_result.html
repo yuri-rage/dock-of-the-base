@@ -1,0 +1,25 @@
+<div id="result"
+     class="card {% if ok %}result-ok{% else %}result-error{% endif %}">
+    <strong>
+        {% if ok %}
+            Success
+        {% else %}
+            Error
+        {% endif %}
+    </strong>
+    <pre>{{ message }}</pre>
+    {% if receiver_info %}
+        <hr />
+        <table class="receiver-info">
+            <caption>
+                Receiver Info
+            </caption>
+            {% for key, value in receiver_info.items() %}
+                <tr>
+                    <td>{{ key }}</td>
+                    <td>{{ value }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+</div>

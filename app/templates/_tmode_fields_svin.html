@@ -1,0 +1,15 @@
+<div class="field">
+    <label>Survey-In minimum duration (minutes)</label>
+    <input type="number"
+           name="svin_min_dur"
+           value="{{ last_cfg.get('svin_min_dur', 15) }}"
+           min="1" />
+</div>
+<div class="field">
+    <label>Accuracy limit (m)</label>
+    <input type="number"
+           name="acc_limit"
+           value="{{ last_cfg.get('acc_limit', 0.2) }}"
+           min="0.001"
+           step="any" />
+</div>

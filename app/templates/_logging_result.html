@@ -1,0 +1,14 @@
+<div id="result"
+     class="card {% if ok %}result-ok{% else %}result-error{% endif %}">
+    <strong>
+        {% if ok %}
+            Success
+        {% else %}
+            Error
+        {% endif %}
+    </strong>
+    <pre>
+{% if enabled %}Logging enabled.{% else %}Logging disabled — configuration saved.{% endif %}
+File duration: {% if file_duration_h < 1 %}{{ (file_duration_h * 60)|int }} minutes{% elif file_duration_h == 1 %}1 hour{% else %}{{ file_duration_h|int }} hours{% endif %}
+Retention: {{ retention_days }} day{{ "s" if retention_days != 1 else "" }}</pre>
+</div>

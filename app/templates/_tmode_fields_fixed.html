@@ -1,0 +1,95 @@
+{% set ft = last_cfg.get('coord_type', 'lla') %}
+<div class="field">
+    <label>Coordinate type</label>
+    <div class="checkgroup">
+        <label class="check-label">
+            <input type="radio"
+                   name="coord_type"
+                   value="lla"
+                   {% if ft != "ecef" %}checked{% endif %}
+                   onclick="fixedToggle('lla')" />
+            LLA
+        </label>
+        <label class="check-label">
+            <input type="radio"
+                   name="coord_type"
+                   value="ecef"
+                   {% if ft == "ecef" %}checked{% endif %}
+                   onclick="fixedToggle('ecef')" />
+            ECEF
+        </label>
+    </div>
+</div>
+<div id="fixed-lla" {% if ft == "ecef" %}style="display:none"{% endif %}>
+    <div class="field">
+        <label>Latitude</label>
+        <input type="number"
+               name="lat"
+               value="{{ last_cfg.get('lat', 0.0) }}"
+               step="0.000000001" />
+    </div>
+    <div class="field">
+        <label>Longitude</label>
+        <input type="number"
+               name="lon"
+               value="{{ last_cfg.get('lon', 0.0) }}"
+               step="0.000000001" />
+    </div>
+    <div class="field">
+        <label>Height (m, HAE)</label>
+        <input type="number"
+               name="height"
+               value="{{ last_cfg.get('height', 0.0) }}"
+               step="any" />
+    </div>
+</div>
+<div id="fixed-ecef" {% if ft != "ecef" %}style="display:none"{% endif %}>
+    <div class="field">
+        <label>ECEF X (m)</label>
+        <input type="number"
+               name="ecef_x"
+               value="{{ last_cfg.get('ecef_x', 0.0) }}"
+               step="0.01" />
+    </div>
+    <div class="field">
+        <label>ECEF Y (m)</label>
+        <input type="number"
+               name="ecef_y"
+               value="{{ last_cfg.get('ecef_y', 0.0) }}"
+               step="0.01" />
+    </div>
+    <div class="field">
+        <label>ECEF Z (m)</label>
+        <input type="number"
+               name="ecef_z"
+               value="{{ last_cfg.get('ecef_z', 0.0) }}"
+               step="0.01" />
+    </div>
+</div>
+<div class="field">
+    <label>Accuracy limit (m)</label>
+    <input type="number"
+           name="acc_limit"
+           value="{{ last_cfg.get('acc_limit', 0.2) }}"
+           min="0.001"
+           step="any" />
+</div>
+<script>
+    function fixedToggle(type) {
+        var lla = document.getElementById("fixed-lla");
+        var ecef = document.getElementById("fixed-ecef");
+        if (type === "lla") {
+            lla.style.display = "";
+            ecef.style.display = "none";
+            ecef.querySelectorAll("input").forEach(function (el) {
+                el.value = 0;
+            });
+        } else {
+            ecef.style.display = "";
+            lla.style.display = "none";
+            lla.querySelectorAll("input").forEach(function (el) {
+                el.value = 0;
+            });
+        }
+    }
+</script>

@@ -1,0 +1,6 @@
+<div id="result" class="card result-ok">
+    <strong>Network config applied</strong>
+    <pre>
+TCP repeater: {% if tcp_port %}port {{ tcp_port }}{% else %}disabled{% endif %}
+NTRIP caster: {% if ntrip_port %}port {{ ntrip_port }}/{{ ntrip_mount }}{% else %}disabled{% endif %}</pre>
+</div>

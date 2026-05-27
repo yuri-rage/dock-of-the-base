@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Dock of the Base</title>
+        <link rel="icon" type="image/png" href="/static/favicon.png">
+        <link rel="stylesheet" href="/static/styles.css">
+        <script src="/static/htmx.min.js"></script>
+    </head>
+    <body>
+        <div class="container">
+            <div class="layout">
+                <div class="layout-main">
+                    <div class="card">
+                        <h2>u-Blox Fixed Base Configuration</h2>
+                        <p class="caption">Designed for ZED-F9 and ZED-X20 series receivers. NEO-M8 and earlier are not supported.</p>
+                        <form hx-post="/configure"
+                              hx-target="#result"
+                              hx-swap="outerHTML"
+                              hx-indicator="#spinner">
+                            <div class="field">
+                                <label>Serial port</label>
+                                {% if serial_ports %}
+                                    <select name="serial_port">
+                                        {% for p in serial_ports %}
+                                            <option value="{{ p }}"
+                                                    {% if p == cfg.get('serial_port') %}selected{% endif %}>
+                                                {{ p }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                {% else %}
+                                    <input type="text"
+                                           name="serial_port"
+                                           value="{{ cfg.get('serial_port', '/dev/ttyUSB0') }}"
+                                           required>
+                                {% endif %}
+                            </div>
+                            <div class="field">
+                                <label>Receiver ports to configure</label>
+                                <div class="checkgroup">
+                                    {% set saved_ports = last_cfg.get('port_type', [cfg.get('port_type', 'UART1')]) %}
+                                    {% for p in ports %}
+                                        <label class="check-label">
+                                            <input type="checkbox"
+                                                   name="port_type"
+                                                   value="{{ p }}"
+                                                   {% if p in saved_ports %}checked{% endif %}>
+                                            {{ p }}
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>Baud rate</label>
+                                <select name="target_baud">
+                                    {% for b in bauds %}
+                                        <option value="{{ b }}"
+                                                {% if b == cfg.get('target_baud', 230400) %}selected{% endif %}>
+                                            {{ "{:,}".format(b) }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Time mode</label>
+                                {% set saved_tmode = last_cfg.get('tmode', 0) %}
+                                <select name="tmode" id="tmode-select">
+                                    {% for t in tmodes %}
+                                        <option value="{{ t.value }}"
+                                                {% if t.value == saved_tmode %}selected{% endif %}>
+                                            {{ t.name.replace('_', '-') }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div id="tmode-fields">
+                                {% if saved_tmode == 1 %}
+                                    {% include "_tmode_fields_svin.html" %}
+                                {% elif saved_tmode == 2 %}
+                                    {% include "_tmode_fields_fixed.html" %}
+                                {% else %}
+                                    {% include "_tmode_fields_disabled.html" %}
+                                {% endif %}
+                            </div>
+                            <div class="field">
+                                <label>RTCM3 MSM version</label>
+                                <div class="checkgroup">
+                                    <label class="check-label">
+                                        <input type="radio"
+                                               name="use_msm7"
+                                               value="false"
+                                               {% if not last_cfg.get('use_msm7', False) %}checked{% endif %}>
+                                        MSM4
+                                    </label>
+                                    <label class="check-label">
+                                        <input type="radio"
+                                               name="use_msm7"
+                                               value="true"
+                                               {% if last_cfg.get('use_msm7', False) %}checked{% endif %}>
+                                        MSM7
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="submit-row">
+                                <button type="submit" class="primary" hx-disabled-elt="this">Configure receiver</button>
+                                <button type="button"
+                                        class="destructive"
+                                        hx-post="/factory-reset"
+                                        hx-target="#result"
+                                        hx-swap="outerHTML"
+                                        hx-confirm="Reset the receiver to factory defaults? This cannot be undone."
+                                        hx-disabled-elt="this">Revert to default</button>
+                                <span id="spinner" class="htmx-indicator">
+                                    <span class="spinner"></span> Configuring&hellip;
+                                </span>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="card">
+                        <h2>Network & Data Services</h2>
+                        <div class="tabs">
+                            <button type="button"
+                                    class="tab-btn active"
+                                    onclick="switchTab('tab-output', this)">Local</button>
+                            <button type="button"
+                                    class="tab-btn"
+                                    onclick="switchTab('tab-ntrip-out', this)">NTRIP Output</button>
+                            <button type="button"
+                                    class="tab-btn"
+                                    onclick="switchTab('tab-ntrip-in', this)">NTRIP Input</button>
+                            <button type="button"
+                                    class="tab-btn"
+                                    onclick="switchTab('tab-logging', this)">Logging</button>
+                        </div>
+                        <form hx-post="/network" hx-target="#result" hx-swap="outerHTML">
+                            <div id="tab-output" class="tab-panel active">
+                                <p class="caption">Allow other devices on your network to receive corrections via TCP or NTRIP.</p>
+                                <div class="field">
+                                    <label>
+                                        TCP repeater port <span class="muted">(0 = disabled)</span>
+                                    </label>
+                                    <input type="number"
+                                           name="tcp_port"
+                                           min="0"
+                                           max="65535"
+                                           value="{{ cfg.get('tcp_port', 0) }}">
+                                </div>
+                                <div class="field">
+                                    <label>
+                                        NTRIP caster port <span class="muted">(0 = disabled)</span>
+                                    </label>
+                                    <input type="number"
+                                           name="ntrip_port"
+                                           min="0"
+                                           max="65535"
+                                           value="{{ cfg.get('local_caster', {}).get('port', 0) }}">
+                                </div>
+                                <div class="field">
+                                    <label>NTRIP mount point</label>
+                                    <input type="text"
+                                           name="ntrip_mount"
+                                           maxlength="32"
+                                           value="{{ cfg.get('local_caster', {}).get('mount_point', 'BASE') }}">
+                                </div>
+                                <div class="submit-row">
+                                    <button type="submit" class="primary" hx-disabled-elt="this">Apply</button>
+                                </div>
+                            </div>
+                            {% set ni = cfg.get('ntrip_in', {}) %}
+                            <div id="tab-ntrip-in" class="tab-panel">
+                                <p class="caption">
+                                    Pull corrections from an external source, which can improve survey-in convergence speed and accuracy. Connection to the external source is automatically disabled in fixed mode.
+                                </p>
+                                <div class="field">
+                                    <label>Caster URL</label>
+                                    <input type="text" name="ntrip_in_url" value="{{ ni.get('url', '') }}">
+                                </div>
+                                <div class="field">
+                                    <label>Port</label>
+                                    <input type="number"
+                                           name="ntrip_in_port"
+                                           min="1"
+                                           max="65535"
+                                           value="{{ ni.get('port', 2101) }}">
+                                </div>
+                                <div class="field">
+                                    <label>Mount point</label>
+                                    <input type="text"
+                                           name="ntrip_in_mount"
+                                           value="{{ ni.get('mount_point', '') }}">
+                                </div>
+                                <div class="field">
+                                    <label>Username</label>
+                                    <input type="text"
+                                           name="ntrip_in_user"
+                                           value="{{ ni.get('username', '') }}"
+                                           autocomplete="off">
+                                </div>
+                                <div class="field">
+                                    <label>Password</label>
+                                    <input type="password"
+                                           name="ntrip_in_password"
+                                           value="{{ ni.get('password', '') }}"
+                                           autocomplete="off">
+                                </div>
+                                <div id="ntrip-in-actions" class="submit-row">
+                                    {% if ntrip_in_status %}
+                                        <button type="button"
+                                                class="primary"
+                                                hx-post="/ntrip-in/disconnect"
+                                                hx-target="#ntrip-in-actions"
+                                                hx-swap="outerHTML"
+                                                hx-disabled-elt="this">Disconnect</button>
+                                    {% else %}
+                                        <button type="button"
+                                                class="primary"
+                                                hx-post="/ntrip-in/connect"
+                                                hx-include="closest form"
+                                                hx-target="#ntrip-in-actions"
+                                                hx-swap="outerHTML"
+                                                hx-indicator="#ntrip-in-spinner"
+                                                hx-disabled-elt="this">Connect</button>
+                                        <span id="ntrip-in-spinner" class="htmx-indicator">
+                                            <span class="spinner"></span> Connecting&hellip;
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </form>
+                        {% set ec = cfg.get('external_caster', {}) %}
+                        <form id="ntrip-out-form">
+                            <div id="tab-ntrip-out" class="tab-panel">
+                                <p class="caption">
+                                    Push RTCM corrections to an external caster such as <a href="https://rtk2go.com" target="_blank">RTK2Go</a> or <a href="https://www.geoastra.com" target="_blank">GeoAstra</a>. The receiver must be configured and actively producing corrections.
+                                </p>
+                                <div class="field">
+                                    <label>
+                                        Caster URL <span class="muted">(leave blank to disable)</span>
+                                    </label>
+                                    <input type="text" name="ntrip_out_url" value="{{ ec.get('url', '') }}">
+                                </div>
+                                <div class="field">
+                                    <label>Port (0 = disabled)</label>
+                                    <input type="number"
+                                           name="ntrip_out_port"
+                                           min="0"
+                                           max="65535"
+                                           value="{{ ec.get('port', 2101) }}">
+                                </div>
+                                <div class="field">
+                                    <label>Mount point</label>
+                                    <input type="text"
+                                           name="ntrip_out_mount"
+                                           value="{{ ec.get('mount_point', '') }}">
+                                </div>
+                                <div class="field">
+                                    <label>Password</label>
+                                    <input type="password"
+                                           name="ntrip_out_password"
+                                           value="{{ ec.get('password', '') }}"
+                                           autocomplete="off">
+                                </div>
+                                <div id="ntrip-out-actions" class="submit-row">
+                                    {% if ntrip_out_status %}
+                                        <button type="button"
+                                                class="primary"
+                                                hx-post="/ntrip-out/disconnect"
+                                                hx-target="#ntrip-out-actions"
+                                                hx-swap="outerHTML"
+                                                hx-disabled-elt="this">Disconnect</button>
+                                    {% else %}
+                                        <button type="button"
+                                                id="ntrip-out-connect-btn"
+                                                class="primary"
+                                                hx-post="/ntrip-out/connect"
+                                                hx-include="#ntrip-out-form"
+                                                hx-target="#ntrip-out-actions"
+                                                hx-swap="outerHTML"
+                                                hx-indicator="#ntrip-out-spinner"
+                                                hx-validate="true"
+                                                hx-disabled-elt="this">Connect</button>
+                                        <span id="ntrip-out-spinner" class="htmx-indicator">
+                                            <span class="spinner"></span> Connecting&hellip;
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </form>
+                        {% set lc = log_cfg %}
+                        <div id="tab-logging" class="tab-panel">
+                            <p class="caption">
+                                Logs raw GNSS measurements to .ubx files. Completed files are automatically converted to RINEX 2.11 (.obs/.nav) for upload to <a href="https://geodesy.noaa.gov/OPUS/" target="_blank">OPUS</a> or post-processing with RTKLIB.
+                            </p>
+                            <div id="logging-controls">
+                                <div class="field">
+                                    <label class="toggle">
+                                        <input type="checkbox"
+                                               name="enabled"
+                                               value="true"
+                                               {% if lc.get('enabled') %}checked{% endif %}
+                                               hx-post="/logging"
+                                               hx-include="#logging-controls"
+                                               hx-target="#result"
+                                               hx-swap="outerHTML">
+                                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                                        Enable logging
+                                    </label>
+                                </div>
+                                <div class="field">
+                                    <label>
+                                        Observation interval <span class="caption">(Use 30s if post-processing with OPUS)</span>
+                                    </label>
+                                    <select name="raw_interval_s"
+                                            hx-post="/logging"
+                                            hx-include="#logging-controls"
+                                            hx-target="#result"
+                                            hx-swap="outerHTML">
+                                        {% for val, label in [(1, "1 second"), (5, "5 seconds"), (15, "15 seconds"), (30, "30 seconds"), (60, "1 minute")] %}
+                                            <option value="{{ val }}"
+                                                    {% if lc.get('raw_interval_s', 30) == val %}selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label>File duration</label>
+                                    <select name="file_duration_h"
+                                            hx-post="/logging"
+                                            hx-include="#logging-controls"
+                                            hx-target="#result"
+                                            hx-swap="outerHTML">
+                                        {% for val, label in [(0.25, "15 minutes"), (0.5, "30 minutes"), (1, "1 hour"), (2, "2 hours"), (4, "4 hours"), (8, "8 hours"), (12, "12 hours"), (24, "24 hours"), (48, "48 hours")] %}
+                                            <option value="{{ val }}"
+                                                    {% if lc.get('file_duration_h', 1) == val %}selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label>Delete files older than</label>
+                                    <select name="retention_days"
+                                            hx-post="/logging"
+                                            hx-include="#logging-controls"
+                                            hx-target="#result"
+                                            hx-swap="outerHTML">
+                                        {% for val, label in [(1, "1 day"), (2, "2 days"), (3, "3 days"), (7, "7 days"), (14, "14 days"), (30, "30 days")] %}
+                                            <option value="{{ val }}"
+                                                    {% if lc.get('retention_days', 2) == val %}selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="files-header">
+                                <span class="caption" style="margin:0;">Log files</span>
+                                <div class="files-header-actions">
+                                    <button type="button"
+                                            class="btn-sm"
+                                            hx-get="/logging/files"
+                                            hx-target="#logging-files"
+                                            hx-swap="innerHTML">Refresh</button>
+                                    <button type="button"
+                                            class="destructive btn-sm"
+                                            hx-post="/logging/clear"
+                                            hx-target="#logging-files"
+                                            hx-swap="innerHTML"
+                                            hx-confirm="Delete all log files? This cannot be undone."
+                                            hx-disabled-elt="this">Clear all</button>
+                                </div>
+                            </div>
+                            <div id="logging-files"
+                                 hx-get="/logging/files"
+                                 hx-trigger="load, refresh"
+                                 hx-swap="innerHTML">
+                                <p class="caption muted">Loading&hellip;</p>
+                            </div>
+                        </div>
+                    </div>
+                    <script>
+    document.body.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.requestConfig && evt.detail.requestConfig.verb !== 'get') {
+            var result = document.getElementById('result');
+            if (result) { result.innerHTML = ''; result.className = ''; }
+        }
+    });
+
+    function switchTab(id, btn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        btn.classList.add('active');
+        if (id === 'tab-logging') {
+            htmx.trigger(document.getElementById('logging-files'), 'refresh');
+        }
+    }
+
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.requestConfig && evt.detail.requestConfig.path === '/logging') {
+            htmx.trigger(document.getElementById('logging-files'), 'refresh');
+        }
+    });
+
+    document.getElementById('tmode-select').addEventListener('change', function(e) {
+        var tmode = e.target.value;
+        var url = '/tmode-fields?tmode=' + tmode;
+        var card = document.getElementById('status-card');
+
+        if (tmode === '2' && card && card.dataset.svinActive === 'true' && card.dataset.ecefX) {
+            if (confirm('A survey-in is in progress. Use the current position to configure fixed mode?')) {
+                var x = card.dataset.ecefX, y = card.dataset.ecefY, z = card.dataset.ecefZ;
+                var acc = card.dataset.svinAcc;
+                url += '&ecef_x=' + x + '&ecef_y=' + y + '&ecef_z=' + z + '&acc_limit=' + acc;
+                var form = document.querySelector('form[hx-post="/configure"]');
+                form.addEventListener('htmx:configRequest', function(evt) {
+                    evt.detail.parameters['coord_type'] = 'ecef';
+                    evt.detail.parameters['ecef_x'] = x;
+                    evt.detail.parameters['ecef_y'] = y;
+                    evt.detail.parameters['ecef_z'] = z;
+                    evt.detail.parameters['acc_limit'] = acc;
+                }, {once: true});
+                htmx.trigger(form, 'submit');
+            }
+        }
+
+        htmx.ajax('GET', url, {target: '#tmode-fields', swap: 'innerHTML'});
+    });
+
+    function updateNtripOutBtn() {
+        var btn = document.getElementById('ntrip-out-connect-btn');
+        var urlEl = document.querySelector('[name="ntrip_out_url"]');
+        var portEl = document.querySelector('[name="ntrip_out_port"]');
+        if (!btn || !urlEl) return;
+        var willConnect = !!urlEl.value.trim() && !!portEl && parseInt(portEl.value) > 0;
+        btn.textContent = willConnect ? 'Connect' : 'Apply';
+        var mountEl = document.querySelector('[name="ntrip_out_mount"]');
+        if (mountEl) mountEl.required = willConnect;
+    }
+
+    document.querySelector('[name="ntrip_out_url"]').addEventListener('input', updateNtripOutBtn);
+    document.querySelector('[name="ntrip_out_port"]').addEventListener('input', updateNtripOutBtn);
+    updateNtripOutBtn();
+
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target && evt.detail.target.id === 'ntrip-out-actions') {
+            updateNtripOutBtn();
+        }
+    });
+
+    // Survey-in convergence sparkline
+    (function () {
+        var svinData = [];
+        var svState = 'idle'; // idle | running | done
+        var initialized = false;
+        var STORAGE_KEY = 'svin_history';
+        var MAX_AGE_MS = 4 * 3600 * 1000;
+
+        function cssVar(name, fallback) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+        }
+
+        function drawSparkline(data, accLimit) {
+            var canvas = document.getElementById('svin-canvas');
+            if (!canvas) return;
+            canvas.width = canvas.offsetWidth;
+            canvas.height = 120;
+            var ctx = canvas.getContext('2d');
+            var W = canvas.width, H = canvas.height;
+            var pad = { top: 8, right: 8, bottom: 20, left: 40 };
+            var pw = W - pad.left - pad.right, ph = H - pad.top - pad.bottom;
+            var clrBorder = cssVar('--border', '#e2e8f0');
+            var clrMuted = cssVar('--muted-foreground', '#94a3b8');
+            var logMin = -2;
+            var logMax = data.length > 0 ? Math.max(Math.ceil(Math.log10(Math.max(data[0].acc, 0.01))), 1) : 2;
+
+            function toY(v) {
+                var t = (Math.log10(Math.max(v, 0.001)) - logMin) / (logMax - logMin);
+                return pad.top + (1 - t) * ph;
+            }
+            function toX(i) {
+                return pad.left + (data.length < 2 ? pw / 2 : (i / (data.length - 1)) * pw);
+            }
+
+            ctx.font = '10px sans-serif';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]);
+
+            function fmtY(v) { return v < 1 ? Math.round(v * 100) + 'cm' : Math.round(v) + 'm'; }
+            for (var exp = logMin; exp <= logMax; exp++) {
+                var gv = Math.pow(10, exp), gy = toY(gv);
+                ctx.strokeStyle = clrBorder;
+                ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left + pw, gy); ctx.stroke();
+                ctx.fillStyle = clrMuted;
+                ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+                ctx.fillText(fmtY(gv), pad.left - 4, gy);
+            }
+
+            if (data.length > 0) {
+                ctx.fillStyle = clrMuted;
+                ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+                ctx.fillText(data[data.length - 1].obs + ' observations', pad.left + pw, H - 3);
+            }
+
+            if (accLimit !== null && accLimit > 0.005 && accLimit < 200) {
+                var ly = toY(accLimit);
+                ctx.setLineDash([4, 3]); ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(pad.left, ly); ctx.lineTo(pad.left + pw, ly); ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            if (data.length >= 2) {
+                ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+                ctx.beginPath();
+                data.forEach(function (d, i) {
+                    var x = toX(i), y = toY(d.acc);
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            }
+
+        }
+
+        function saveToStorage() {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now(), data: svinData })); } catch (e) {}
+        }
+
+        function clearStorage() {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        }
+
+        function restoreFromStorage(card) {
+            try {
+                var raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                var stored = JSON.parse(raw);
+                if (!stored || !Array.isArray(stored.data) || stored.data.length === 0) return;
+                if (Date.now() - stored.ts > MAX_AGE_MS) { clearStorage(); return; }
+
+                var active = card.dataset.svinActive === 'true';
+                if (active) {
+                    var currentObs = parseInt(card.dataset.svinObs, 10);
+                    var lastObs = stored.data[stored.data.length - 1].obs;
+                    if (!isNaN(currentObs) && currentObs < lastObs) { clearStorage(); return; }
+                }
+
+                svinData.push.apply(svinData, stored.data);
+                svState = active ? 'running' : 'done';
+                var sparkline = document.getElementById('svin-sparkline');
+                if (sparkline) sparkline.style.display = '';
+                var accLimit = card.dataset.svinAccLimit ? parseFloat(card.dataset.svinAccLimit) : null;
+                drawSparkline(svinData, accLimit);
+            } catch (e) { clearStorage(); }
+        }
+
+        function updateSparkline(card) {
+            if (!initialized) { restoreFromStorage(card); initialized = true; }
+
+            var active = card.dataset.svinActive === 'true';
+            var sparkline = document.getElementById('svin-sparkline');
+            if (!sparkline) return;
+
+            if (svState === 'idle') {
+                if (!active) return;
+                svState = 'running';
+                svinData.length = 0;
+            } else if (svState === 'running') {
+                if (!active) { svState = 'done'; sparkline.style.display = ''; return; }
+            } else if (svState === 'done') {
+                if (!active) return;
+                svState = 'running';
+                svinData.length = 0;
+                clearStorage();
+            }
+
+            var acc = parseFloat(card.dataset.svinAcc);
+            var obs = parseInt(card.dataset.svinObs, 10);
+            if (!isNaN(acc) && !isNaN(obs)) {
+                var last = svinData[svinData.length - 1];
+                if (!last || last.obs !== obs) {
+                    svinData.push({ obs: obs, acc: acc });
+                    saveToStorage();
+                }
+            }
+
+            var accLimit = card.dataset.svinAccLimit ? parseFloat(card.dataset.svinAccLimit) : null;
+            sparkline.style.display = '';
+            drawSparkline(svinData, accLimit);
+        }
+
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
+            if (!evt.detail.target || evt.detail.target.id !== 'status-card') return;
+            var card = document.getElementById('status-card');
+            if (card) updateSparkline(card);
+        });
+    })();
+                    </script>
+                </div>
+                <!-- layout-main -->
+                <div class="layout-aside">
+                    <div id="status-card"
+                         hx-get="/status"
+                         hx-trigger="load"
+                         hx-swap="outerHTML">
+                        <div class="card">
+                            <p class="muted">Loading receiver status&hellip;</p>
+                        </div>
+                    </div>
+                    <div id="svin-sparkline"
+                         class="card"
+                         style="display: none;
+                                margin-top: 0.5rem">
+                        <p class="caption" style="margin: 0 0 0.5rem">Survey-In Convergence</p>
+                        <canvas id="svin-canvas" style="display: block; width: 100%"></canvas>
+                    </div>
+                    <div id="result"></div>
+                </div>
+                <!-- layout-aside -->
+            </div>
+            <!-- layout -->
+        </div>
+        <!-- container -->
+    </body>
+</html>

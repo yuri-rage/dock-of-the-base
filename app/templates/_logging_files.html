@@ -1,0 +1,81 @@
+{% if files %}
+    <div style="margin-top: 0.5rem">
+        <p class="caption" style="margin-bottom: 0.5rem">
+            {% set total = files|sum(attribute='size') %}
+            {{ files|length }} file{{ "s" if files|length != 1 else "" }},
+            {% if total >= 1048576 %}
+                {{ "%.1f MB" % (total / 1048576) }}
+            {% elif total >= 1024 %}
+                {{ "%.0f KB" % (total / 1024) }}
+            {% else %}
+                {{ total }} B
+            {% endif %}
+            {% if active %}
+                &nbsp;&mdash;&nbsp;<span class="dot-ok status-dot"
+      style="display: inline-block;
+             vertical-align: middle"></span>
+                recording
+            {% endif %}
+        </p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem">
+            {% for f in files %}
+                <tr style="border-top: 1px solid var(--border)">
+                    <td style="padding: 0.3rem 0.5rem 0.3rem 0;
+                               color: var(--muted-foreground);
+                               white-space: nowrap">{{ f.ctime }}</td>
+                    <td style="padding: 0.3rem 0.25rem; white-space: nowrap">
+                        <span style="font-size: 0.7rem;
+                                     font-weight: 600;
+                                     letter-spacing: 0.04em;
+                                     padding: 0.1rem 0.35rem;
+                                     border-radius: 3px;
+                                     background: var(--secondary);
+                                     color: var(--muted-foreground)">{{ f.ext|upper }}</span>
+                    </td>
+                    <td style="padding: 0.3rem 0.5rem; word-break: break-all">{{ f.name }}</td>
+                    <td style="padding: 0.3rem 0;
+                               white-space: nowrap;
+                               text-align: right;
+                               color: var(--muted-foreground)">
+                        {% if f.size >= 1048576 %}
+                            {{ "%.1f MB" % (f.size / 1048576) }}
+                        {% elif f.size >= 1024 %}
+                            {{ "%.0f KB" % (f.size / 1024) }}
+                        {% else %}
+                            {{ f.size }} B
+                        {% endif %}
+                    </td>
+                    <td style="padding: 0.3rem 0 0.3rem 1rem; text-align: right">
+                        <a href="/logging/download/{{ f.name }}">Download</a>
+                    </td>
+                    <td style="padding: 0.3rem 0 0.3rem 0.75rem; text-align: right">
+                        <button type="button"
+                                class="destructive btn-sm"
+                                style="border: none"
+                                hx-post="/logging/delete/{{ f.name }}"
+                                hx-target="#logging-files"
+                                hx-swap="innerHTML"
+                                hx-confirm="Delete {{ f.name }}?"
+                                hx-disabled-elt="this">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="13"
+                                 height="13"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 style="display: block">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% else %}
+    <p class="caption muted" style="margin-top: 0.5rem">No log files found.</p>
+{% endif %}
