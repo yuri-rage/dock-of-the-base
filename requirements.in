@@ -1,0 +1,10 @@
+# requirements.in - for use with pip-tools
+# run `pip-compile requirements.in` to update requirements.txt
+# use `pip-sync requirements.txt` to install/update dependencies
+
+djlint
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+pygnssutils
