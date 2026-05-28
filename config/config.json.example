@@ -17,7 +17,8 @@
     "port": 2101,
     "mount_point": "",
     "username": "",
-    "password": ""
+    "password": "",
+    "send_gga": false
   },
   "logging": {
     "enabled": false,

@@ -12,8 +12,9 @@ import socket
 import socketserver
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Any, cast
 from urllib.parse import urlparse
@@ -32,6 +33,7 @@ RECONNECT_INTERVAL = 15.0
 NTRIP_IN_RECONNECT_INTERVAL = 30.0
 NTRIP_OUT_RECONNECT_INITIAL = 5.0
 NTRIP_OUT_RECONNECT_MAX = 60.0
+NTRIP_IN_GGA_INTERVAL = 30.0
 DEFAULT_TTY_EXCLUDE = r"^tty(\d+|S\d+)?$"
 
 FIX_TYPES = {
@@ -710,6 +712,58 @@ def _connection_loop() -> None:
 # --- NTRIP corrections input ---
 
 
+def _build_gga() -> str | None:
+    """Craft a NMEA GGA sentence from current receiver state."""
+    with _lock:
+        lat = state.lat
+        lon = state.lon
+        alt_msl = state.height_msl_m
+        alt_hae = state.height_m
+        num_sv = state.num_sv or 0
+        hdop = state.hdop or 1.0
+        fix_type = state.fix_type
+        carrier = state.carrier_solution
+
+    if lat is None or lon is None or alt_msl is None:
+        return None
+
+    if carrier == 2:
+        quality = 4  # RTK fixed
+    elif carrier == 1:
+        quality = 5  # RTK float
+    elif fix_type == 3:
+        quality = 1  # GPS 3D
+    else:
+        return None  # no usable fix
+
+    now = datetime.now(timezone.utc)
+    time_str = now.strftime("%H%M%S.00")
+
+    lat_abs = abs(lat)
+    lat_deg = int(lat_abs)
+    lat_min = (lat_abs - lat_deg) * 60
+    lat_hem = "N" if lat >= 0 else "S"
+
+    lon_abs = abs(lon)
+    lon_deg = int(lon_abs)
+    lon_min = (lon_abs - lon_deg) * 60
+    lon_hem = "E" if lon >= 0 else "W"
+
+    geoid_sep = (alt_hae - alt_msl) if alt_hae is not None else 0.0
+
+    body = (
+        f"GPGGA,{time_str},"
+        f"{lat_deg:02d}{lat_min:08.5f},{lat_hem},"
+        f"{lon_deg:03d}{lon_min:08.5f},{lon_hem},"
+        f"{quality},{num_sv:02d},{hdop:.2f},"
+        f"{alt_msl:.2f},M,{geoid_sep:.2f},M,,"
+    )
+    checksum = 0
+    for c in body:
+        checksum ^= ord(c)
+    return f"${body}*{checksum:02X}\r\n"
+
+
 def _ntrip_in_wanted() -> bool:
     """False only when receiver is in known Fixed mode."""
     with _lock:
@@ -764,14 +818,24 @@ def _ntrip_in_connect(cfg: dict) -> socket.socket | None:
         return None
 
 
-def _ntrip_in_recv(sock: socket.socket) -> bool:
+def _ntrip_in_recv(sock: socket.socket, send_gga: bool) -> bool:
     """Receive RTCM corrections, forwarding to serial. Returns True if server dropped (reconnect), False to stop."""
     global _ntrip_in_active
+    last_gga = 0.0
     while not _stop.is_set() and _ntrip_in_active:
         if not _ntrip_in_wanted():
             _ntrip_in_active = False
             log.info("NTRIP-in: disconnecting — receiver entered Fixed mode")
             return False
+        if send_gga and time.monotonic() - last_gga >= NTRIP_IN_GGA_INTERVAL:
+            gga = _build_gga()
+            if gga:
+                try:
+                    sock.sendall(gga.encode())
+                    last_gga = time.monotonic()
+                    log.debug("NTRIP-in: sent GGA: %s", gga.strip())
+                except OSError:
+                    pass
         try:
             data = sock.recv(4096)
             if not data:
@@ -790,6 +854,7 @@ def _ntrip_in_recv(sock: socket.socket) -> bool:
 
 def _ntrip_in_loop(cfg: dict, initial_sock: socket.socket) -> None:
     global _ntrip_in_sock, _ntrip_in_status
+    send_gga = bool(cfg.get("send_gga", False))
     sock: socket.socket | None = initial_sock
     try:
         while not _stop.is_set() and _ntrip_in_active:
@@ -801,7 +866,7 @@ def _ntrip_in_loop(cfg: dict, initial_sock: socket.socket) -> None:
             _ntrip_in_sock = sock
             _ntrip_in_status = "connected"
             try:
-                reconnect = _ntrip_in_recv(sock)
+                reconnect = _ntrip_in_recv(sock, send_gga)
             finally:
                 _ntrip_in_sock = None
                 try:

@@ -68,8 +68,9 @@ logging.getLogger("app").setLevel(
 
 class _ErrorsOnlyAccessFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        if record.args and isinstance(record.args[-1], int):
-            return record.args[-1] >= 400
+        args = record.args
+        if isinstance(args, tuple) and args and isinstance(args[-1], int):
+            return args[-1] >= 400
         return True
 
 
@@ -505,6 +506,7 @@ async def ntrip_in_connect_route(
     ntrip_in_mount: str = Form(""),
     ntrip_in_user: str = Form(""),
     ntrip_in_password: str = Form(""),
+    ntrip_in_send_gga: str = Form(""),
 ):
     def run():
         cfg = receiver.load_config() or {}
@@ -514,6 +516,7 @@ async def ntrip_in_connect_route(
             "mount_point": ntrip_in_mount,
             "username": ntrip_in_user,
             "password": ntrip_in_password,
+            "send_gga": ntrip_in_send_gga == "true",
         }
         receiver.CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
         return ntrip_in_connect()

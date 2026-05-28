@@ -221,6 +221,17 @@
                                            value="{{ ni.get('password', '') }}"
                                            autocomplete="off">
                                 </div>
+                                <div class="field">
+                                    <div class="checkgroup">
+                                        <label class="check-label">
+                                            <input type="checkbox"
+                                                   name="ntrip_in_send_gga"
+                                                   value="true"
+                                                   {% if ni.get('send_gga') %}checked{% endif %}>
+                                            Send NMEA GGA to caster (required for VRS)
+                                        </label>
+                                    </div>
+                                </div>
                                 {% set connected = ntrip_in_active %}
                                 {% include "_ntrip_in_actions.html" %}
                             </div>
