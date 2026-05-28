@@ -36,6 +36,7 @@ from app.receiver import (
     ntrip_out_connect,
     ntrip_out_connected,
     ntrip_out_disconnect,
+    ntrip_out_status_str,
     ntrip_port,
     save_last_configure,
 )
@@ -63,6 +64,16 @@ logging.basicConfig(
 logging.getLogger("app").setLevel(
     getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
 )
+
+
+class _ErrorsOnlyAccessFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.args and isinstance(record.args[-1], int):
+            return record.args[-1] >= 400
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_ErrorsOnlyAccessFilter())
 
 
 def _apply_config_msgs(
@@ -276,6 +287,7 @@ async def status(request: Request):
             "ntrip_mount": ntrip_mount(),
             "ntrip_clients": ntrip_client_count(),
             "ntrip_out_connected": ntrip_out_connected(),
+            "ntrip_out_status": ntrip_out_status_str(),
             "ntrip_out_url": ntrip_out_url,
             "ntrip_in_status": ntrip_in_status_str(),
         },

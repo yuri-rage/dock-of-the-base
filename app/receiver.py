@@ -30,6 +30,8 @@ CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.json"
 LOG_DIR = Path(__file__).parent.parent / "logs"
 RECONNECT_INTERVAL = 15.0
 NTRIP_IN_RECONNECT_INTERVAL = 30.0
+NTRIP_OUT_RECONNECT_INITIAL = 5.0
+NTRIP_OUT_RECONNECT_MAX = 60.0
 DEFAULT_TTY_EXCLUDE = r"^tty(\d+|S\d+)?$"
 
 FIX_TYPES = {
@@ -109,6 +111,7 @@ _ntrip_out_sock: socket.socket | None = None
 _ntrip_out_lock = threading.Lock()
 _ntrip_out_active: bool = False
 _ntrip_out_thread: threading.Thread | None = None
+_ntrip_out_status: str = "disconnected"
 
 # Raw binary log state
 _log_file: IO[bytes] | None = None
@@ -194,6 +197,13 @@ def ntrip_out_connected() -> bool | None:
         return None
     with _ntrip_out_lock:
         return _ntrip_out_sock is not None
+
+
+def ntrip_out_status_str() -> str | None:
+    """Returns detailed status string when external_caster is configured, None when unconfigured."""
+    if not (load_config() or {}).get("external_caster"):
+        return None
+    return _ntrip_out_status
 
 
 # --- TCP bridge ---
@@ -889,7 +899,8 @@ def _ntrip_out_connect(cfg: dict) -> socket.socket | None:
         return None
 
 
-def _ntrip_out_run(sock: socket.socket) -> None:
+def _ntrip_out_recv(sock: socket.socket) -> bool:
+    """Inner receive loop. Returns True to reconnect, False to stop."""
     global _ntrip_out_sock, _ntrip_out_active
     with _ntrip_out_lock:
         _ntrip_out_sock = sock
@@ -899,27 +910,50 @@ def _ntrip_out_run(sock: socket.socket) -> None:
                 data = sock.recv(256)
                 if not data:
                     log.warning("NTRIP-out: server closed connection")
-                    break
+                    return True
             except TimeoutError:
                 continue
             except OSError as e:
                 if _ntrip_out_active:
                     log.warning("NTRIP-out: socket error: %s", e)
-                break
+                return True
+        return False
     finally:
         with _ntrip_out_lock:
             _ntrip_out_sock = None
-        _ntrip_out_active = False
         try:
             sock.close()
         except OSError:
             pass
-        log.info("NTRIP-out: disconnected")
+
+
+def _ntrip_out_loop(cfg: dict) -> None:
+    """Outer reconnect loop with exponential backoff."""
+    global _ntrip_out_active, _ntrip_out_status
+    delay = NTRIP_OUT_RECONNECT_INITIAL
+    while not _stop.is_set() and _ntrip_out_active:
+        sock = _ntrip_out_connect(cfg)
+        if sock:
+            _ntrip_out_status = "connected"
+            delay = NTRIP_OUT_RECONNECT_INITIAL
+            reconnect = _ntrip_out_recv(sock)
+            if not reconnect:
+                break
+            if _ntrip_out_active:
+                _ntrip_out_status = "reconnecting"
+                log.info("NTRIP-out: reconnecting in %.0fs", delay)
+        else:
+            log.warning("NTRIP-out: connection failed, retrying in %.0fs", delay)
+        _stop.wait(delay)
+        delay = min(delay * 2, NTRIP_OUT_RECONNECT_MAX)
+    _ntrip_out_active = False
+    _ntrip_out_status = "disconnected"
+    log.info("NTRIP-out: disconnected")
 
 
 def ntrip_out_connect() -> str | None:
     """Connect to external NTRIP caster. Returns error string on failure, None on success."""
-    global _ntrip_out_active, _ntrip_out_thread
+    global _ntrip_out_active, _ntrip_out_status, _ntrip_out_thread
     cfg = (load_config() or {}).get("external_caster")
     if not cfg or not cfg.get("url", "").strip():
         return "External caster URL is not configured."
@@ -927,8 +961,9 @@ def ntrip_out_connect() -> str | None:
     if not sock:
         return "Failed to connect to external caster."
     _ntrip_out_active = True
+    _ntrip_out_status = "connected"
     _ntrip_out_thread = threading.Thread(
-        target=_ntrip_out_run, args=(sock,), daemon=True, name="ntrip-out"
+        target=_ntrip_out_loop, args=(cfg,), daemon=True, name="ntrip-out"
     )
     _ntrip_out_thread.start()
     return None

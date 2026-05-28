@@ -150,12 +150,14 @@
             {% endif %}
         </span>
     </div>
-    {% if ntrip_out_connected is not none %}
+    {% if ntrip_out_status is not none %}
         <div class="status-header" style="margin-top: 0.5rem">
-            <span class="status-dot {% if ntrip_out_connected %}dot-ok{% else %}dot-err{% endif %}"></span>
+            <span class="status-dot {% if ntrip_out_status == 'connected' %}dot-ok{% else %}dot-err{% endif %}"></span>
             <span class="muted">NTRIP out &mdash;
-                {% if ntrip_out_connected %}
+                {% if ntrip_out_status == 'connected' %}
                     casting to {{ ntrip_out_url }}
+                {% elif ntrip_out_status == 'reconnecting' %}
+                    reconnecting&hellip;
                 {% else %}
                     disconnected
                 {% endif %}
