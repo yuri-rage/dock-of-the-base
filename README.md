@@ -85,6 +85,9 @@ The web app provides multiple options for configuring local and external network
 - The produced .ubx log files contain `RAWX` and `SFRBX` UBX messages.
 - For convenience, completed .ubx log files are automatically converted to RINEX .obs and .nav files using `convbin` from [RTKLIB](https://github.com/tomojitakasu/RTKLIB).
 
+## Post-processing
+
+TODO (but mostly just upload .obs files to OPUS)
 
 ## Notes to self (keep for now)
 
