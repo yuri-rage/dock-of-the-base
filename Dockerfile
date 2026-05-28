@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ app/
 COPY entrypoint.sh .
 
-RUN mkdir -p logs && chmod +x entrypoint.sh
+RUN mkdir -p config logs && chmod +x entrypoint.sh
 
 EXPOSE 8000
 

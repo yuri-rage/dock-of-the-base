@@ -26,7 +26,7 @@ from app.ubx_cfg_valset import auto_baud_connect, config_fixed_ecef
 
 log = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent.parent / "config.json"
+CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.json"
 LOG_DIR = Path(__file__).parent.parent / "logs"
 RECONNECT_INTERVAL = 15.0
 NTRIP_IN_RECONNECT_INTERVAL = 30.0

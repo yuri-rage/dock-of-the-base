@@ -15,7 +15,7 @@ Requires [Docker](https://docs.docker.com/engine/install/) with the Compose plug
 Download the compose file:
 
 ```bash
-curl -O https://raw.githubusercontent.com/yuri-rage/dock-of-the-base/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/yuri-rage/dock-of-the-base/master/docker-compose.yml
 ```
 
 Start the service:
