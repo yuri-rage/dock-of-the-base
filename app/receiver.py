@@ -30,6 +30,7 @@ CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.json"
 LOG_DIR = Path(__file__).parent.parent / "logs"
 RECONNECT_INTERVAL = 15.0
 NTRIP_IN_RECONNECT_INTERVAL = 30.0
+DEFAULT_TTY_EXCLUDE = r"^tty(\d+|S\d+)?$"
 
 FIX_TYPES = {
     0: "No fix",
@@ -657,7 +658,7 @@ def _connection_loop() -> None:
     global _serial
     while not _stop.is_set():
         cfg = load_config()
-        if not cfg:
+        if not cfg or "serial_port" not in cfg:
             _stop.wait(RECONNECT_INTERVAL)
             continue
 
@@ -1216,7 +1217,12 @@ def configure_network(tcp: int, ntrip: int, mount: str) -> None:
 def start() -> None:
     global _thread, _ntrip_in_thread, _tcp_server, _ntrip_server
     _stop.clear()
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     cfg = load_config() or {}
+    if "tty_exclude" not in cfg:
+        cfg["tty_exclude"] = DEFAULT_TTY_EXCLUDE
+        CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
     tcp_port_cfg = cfg.get("tcp_port", 0)
     if tcp_port_cfg and not _tcp_server:
         _tcp_server = _start_tcp_server(int(tcp_port_cfg))

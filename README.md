@@ -12,10 +12,12 @@ Requires [Docker](https://docs.docker.com/engine/install/) with the Compose plug
 
 > NOTE: This app is untested on Windows. Docker Desktop does not support USB device passthrough; however, running Docker under WSL2 with [usbipd-win](https://github.com/dorssel/usbipd-win) should work. See the [usbipd-win documentation](https://learn.microsoft.com/en-us/windows/wsl/connect-usb) for setup instructions.
 
-Download the compose file:
+Download the compose file and initialize the data directories:
 
 ```bash
 curl -O https://raw.githubusercontent.com/yuri-rage/dock-of-the-base/master/docker-compose.yml
+mkdir -p config logs
+touch config/config.json
 ```
 
 Start the service:
