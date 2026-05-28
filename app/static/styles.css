@@ -405,3 +405,11 @@ pre {
     display: block;
     margin-top: 0.35rem;
 }
+
+footer {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--muted-foreground);
+    padding: 0.5rem 0;
+    text-align: center;
+}

@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pyubx2 import UBXMessage
 
-from app import receiver
+from app import __version__, receiver
 from app.filters import deg_to_dms, google_maps_link, m_to_ft
 from app.receiver import (
     CARRIER_SOLUTION_TYPES,
@@ -249,6 +249,7 @@ async def index(request: Request):
             "ntrip_in_active": ntrip_in_active(),
             "ntrip_out_status": ntrip_out_connected(),
             "log_cfg": cfg.get("logging", {}),
+            "version": __version__,
         },
     )
 
