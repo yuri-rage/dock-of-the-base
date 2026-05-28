@@ -5,7 +5,7 @@
 __pycache__
 *.pyc
 *.egg-info/
+config.json
 dist/
 build/
 logs/
-config/
