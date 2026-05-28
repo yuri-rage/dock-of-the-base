@@ -34,6 +34,8 @@ To stop the service:
 docker compose down
 ```
 
+![Screenshot](screenshot.png)
+
 ## Quick Start
 
 - Connect the receiver to the host via USB or UART/serial port.
