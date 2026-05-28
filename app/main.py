@@ -258,6 +258,8 @@ async def status(request: Request):
     with receiver._lock:
         s = copy.copy(receiver.state)
     cfg = receiver.load_config() or {}
+    ntrip_out_url = cfg.get("external_caster", {}).get("url") or ""
+    ntrip_out_url = ntrip_out_url.removeprefix("https://").removeprefix("http://")
     return templates.TemplateResponse(
         request,
         "_status.html",
@@ -273,6 +275,7 @@ async def status(request: Request):
             "ntrip_mount": ntrip_mount(),
             "ntrip_clients": ntrip_client_count(),
             "ntrip_out_connected": ntrip_out_connected(),
+            "ntrip_out_url": ntrip_out_url,
             "ntrip_in_status": ntrip_in_status_str(),
         },
     )
@@ -738,4 +741,4 @@ async def logging_download(filename: str):
 
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)

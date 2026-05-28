@@ -7,7 +7,7 @@
      {% if state.svin_active %}data-svin-acc="{{ state.svin_mean_acc_m }}" data-svin-obs="{{ state.svin_obs }}"{% endif %}
      {% if acc_limit is not none %}data-svin-acc-limit="{{ acc_limit }}"{% endif %}
      {% if state.svin_ecef_x is not none %} data-ecef-x="{{ state.svin_ecef_x }}" data-ecef-y="{{ state.svin_ecef_y }}" data-ecef-z="{{ state.svin_ecef_z }}" {% endif %}>
-    <div class="section-title">
+    <div class="status-title">
         <div class="status-header">
             <span class="status-dot {% if state.connected %}dot-ok{% else %}dot-err{% endif %}"></span>
             <strong>
@@ -155,7 +155,7 @@
             <span class="status-dot {% if ntrip_out_connected %}dot-ok{% else %}dot-err{% endif %}"></span>
             <span class="muted">NTRIP out &mdash;
                 {% if ntrip_out_connected %}
-                    casting
+                    casting to {{ ntrip_out_url }}
                 {% else %}
                     disconnected
                 {% endif %}

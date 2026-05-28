@@ -8,7 +8,29 @@ Provides a web app and persistent serial connection to the base station receiver
 
 ## Installation
 
-TODO
+Requires [Docker](https://docs.docker.com/engine/install/) with the Compose plugin.
+
+> NOTE: This app is untested on Windows. Docker Desktop does not support USB device passthrough; however, running Docker under WSL2 with [usbipd-win](https://github.com/dorssel/usbipd-win) should work. See the [usbipd-win documentation](https://learn.microsoft.com/en-us/windows/wsl/connect-usb) for setup instructions.
+
+Download the compose file:
+
+```bash
+curl -O https://raw.githubusercontent.com/yuri-rage/dock-of-the-base/main/docker-compose.yml
+```
+
+Start the service:
+
+```bash
+docker compose up -d
+```
+
+The image will be pulled from Docker Hub automatically on first run. Navigate to `http://<host-ip>:8000` to access the web interface.
+
+To stop the service:
+
+```bash
+docker compose down
+```
 
 ## Quick Start
 

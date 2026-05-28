@@ -700,9 +700,9 @@ def _connection_loop() -> None:
 
 
 def _ntrip_in_wanted() -> bool:
-    """True when tmode is known and is Disabled or Survey-In."""
+    """False only when receiver is in known Fixed mode."""
     with _lock:
-        return state.tmode in (0, 1)
+        return state.tmode != 2
 
 
 def _ntrip_in_connect(cfg: dict) -> socket.socket | None:
@@ -755,9 +755,11 @@ def _ntrip_in_connect(cfg: dict) -> socket.socket | None:
 
 def _ntrip_in_recv(sock: socket.socket) -> bool:
     """Receive RTCM corrections, forwarding to serial. Returns True if server dropped (reconnect), False to stop."""
+    global _ntrip_in_active
     while not _stop.is_set() and _ntrip_in_active:
         if not _ntrip_in_wanted():
-            log.info("NTRIP-in: disconnecting — Fixed mode active")
+            _ntrip_in_active = False
+            log.info("NTRIP-in: disconnecting — receiver entered Fixed mode")
             return False
         try:
             data = sock.recv(4096)
