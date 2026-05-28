@@ -13,6 +13,7 @@ from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pyubx2 import UBXMessage
 
 from app import receiver
 from app.filters import deg_to_dms, google_maps_link, m_to_ft
@@ -27,9 +28,10 @@ from app.receiver import (
     list_log_files,
     logging_active,
     ntrip_client_count,
+    ntrip_in_active,
     ntrip_in_connect,
-    ntrip_in_connected,
     ntrip_in_disconnect,
+    ntrip_in_status_str,
     ntrip_mount,
     ntrip_out_connect,
     ntrip_out_connected,
@@ -63,6 +65,100 @@ logging.getLogger("app").setLevel(
 )
 
 
+def _apply_config_msgs(
+    send_fn: Callable[[UBXMessage], bool],
+    port_type: list[str],
+    raw_interval: int,
+    signal_msgs: list[UBXMessage],
+    use_msm7: bool,
+    tmode: int,
+    acc_limit: float,
+    svin_min_dur: int,
+    coord_type: str,
+    lat: float,
+    lon: float,
+    height: float,
+    ecef_x: float,
+    ecef_y: float,
+    ecef_z: float,
+) -> tuple[bool, list[str], str]:
+    logs: list[str] = []
+    if not send_fn(config_ubx(port_type)):
+        return False, logs, "Failed to configure UBX output."
+    logs.append(f"UBX output configured on {', '.join(port_type)}.")
+
+    if not send_fn(config_ubx_raw_interval(port_type, raw_interval)):
+        return False, logs, "Failed to configure raw data interval."
+    logs.append(f"Raw data interval set to {raw_interval}s.")
+
+    for msg in signal_msgs:
+        if not send_fn(msg):
+            return False, logs, "Failed to configure signal types."
+    logs.append("Signal configuration applied.")
+
+    if not send_fn(config_rtcm(port_type, use_msm7=use_msm7)):
+        return False, logs, "Failed to configure RTCM output."
+    logs.append(f"RTCM3 {'MSM7' if use_msm7 else 'MSM4'} output configured.")
+
+    ok, tmode_log = _run_tmode_config(
+        send_fn,
+        tmode,
+        acc_limit,
+        svin_min_dur,
+        coord_type,
+        lat,
+        lon,
+        height,
+        ecef_x,
+        ecef_y,
+        ecef_z,
+        port_type,
+    )
+    if not ok:
+        return False, logs, tmode_log
+    if tmode_log:
+        logs.append(tmode_log)
+    return True, logs, ""
+
+
+def _build_last_configure(
+    existing: dict,
+    tmode: int,
+    acc_limit: float,
+    svin_min_dur: int,
+    use_msm7: bool,
+    port_type: list[str],
+    coord_type: str,
+    lat: float,
+    lon: float,
+    height: float,
+    ecef_x: float,
+    ecef_y: float,
+    ecef_z: float,
+) -> dict:
+    last = {
+        **existing,
+        "tmode": tmode,
+        "acc_limit": acc_limit,
+        "svin_min_dur": svin_min_dur,
+        "use_msm7": use_msm7,
+        "port_type": port_type,
+    }
+    if tmode == TMODE.Fixed:
+        last.update(
+            {
+                "coord_type": coord_type,
+                "lat": lat,
+                "lon": lon,
+                "height": height,
+                "ecef_x": ecef_x,
+                "ecef_y": ecef_y,
+                "ecef_z": ecef_z,
+            }
+        )
+    return last
+
+
 def _run_tmode_config(
     send_fn: Callable[[UBXMessage], bool],
     tmode: int,
@@ -82,7 +178,9 @@ def _run_tmode_config(
             return False, "Failed to disable time mode."
         return True, "Time mode disabled."
     if tmode == TMODE.Survey_In:
-        if not send_fn(config_svin(port_type, int(acc_limit * 100), svin_min_dur * 60)):
+        if not send_fn(
+            config_svin(port_type, int(acc_limit * 10000), svin_min_dur * 60)
+        ):
             return False, "Failed to configure Survey-In mode."
         return (
             True,
@@ -90,10 +188,12 @@ def _run_tmode_config(
         )
     if tmode == TMODE.Fixed:
         if coord_type == "ecef":
-            fixed_msg = config_fixed_ecef(int(acc_limit * 100), ecef_x, ecef_y, ecef_z)
+            fixed_msg = config_fixed_ecef(
+                int(acc_limit * 10000), ecef_x, ecef_y, ecef_z
+            )
             fixed_desc = f"ECEF ({ecef_x}, {ecef_y}, {ecef_z}) m"
         else:
-            fixed_msg = config_fixed(int(acc_limit * 100), lat, lon, height * 1000)
+            fixed_msg = config_fixed(int(acc_limit * 10000), lat, lon, height * 1000)
             fixed_desc = f"{lat}, {lon}, height {height} m HAE"
         if not send_fn(fixed_msg):
             return False, "Failed to configure Fixed mode."
@@ -101,12 +201,15 @@ def _run_tmode_config(
     return True, ""
 
 
-def get_serial_ports() -> list[str]:
-    pattern = (receiver.load_config() or {}).get("tty_exclude", "")
-    try:
-        exclude = re.compile(pattern) if pattern else None
-    except re.error:
+def get_serial_ports(show_all: bool = False) -> list[str]:
+    if show_all:
         exclude = None
+    else:
+        pattern = (receiver.load_config() or {}).get("tty_exclude", "")
+        try:
+            exclude = re.compile(pattern) if pattern else None
+        except re.error:
+            exclude = None
     ttys = (
         p for p in Path("/dev").glob("tty*") if not exclude or not exclude.match(p.name)
     )
@@ -143,7 +246,7 @@ async def index(request: Request):
             "serial_ports": get_serial_ports(),
             "cfg": cfg,
             "last_cfg": cfg.get("last_configure", {}),
-            "ntrip_in_status": ntrip_in_connected(),
+            "ntrip_in_active": ntrip_in_active(),
             "ntrip_out_status": ntrip_out_connected(),
             "log_cfg": cfg.get("logging", {}),
         },
@@ -170,7 +273,20 @@ async def status(request: Request):
             "ntrip_mount": ntrip_mount(),
             "ntrip_clients": ntrip_client_count(),
             "ntrip_out_connected": ntrip_out_connected(),
-            "ntrip_in_connected": ntrip_in_connected(),
+            "ntrip_in_status": ntrip_in_status_str(),
+        },
+    )
+
+
+@app.get("/serial-ports", response_class=HTMLResponse)
+async def serial_ports_route(request: Request, show_all: bool = Query(False)):
+    cfg = receiver.load_config() or {}
+    return templates.TemplateResponse(
+        request,
+        "_serial_port_select.html",
+        {
+            "serial_ports": get_serial_ports(show_all=show_all),
+            "cfg": cfg,
         },
     )
 
@@ -198,6 +314,10 @@ async def configure(
             return False, "No port type selected.", {}
 
         cfg = receiver.load_config() or {}
+        raw_interval = cfg.get("logging", {}).get("raw_interval_s", 30)
+        msm7 = use_msm7 == "true"
+        existing = (receiver.load_config() or {}).get("last_configure", {})
+
         with receiver._lock:
             connected = receiver.state.connected
             is_multiband = receiver.state.is_multiband
@@ -209,30 +329,12 @@ async def configure(
         )
 
         if live:
-            logs = [f"Reconfiguring live connection on {', '.join(port_type)}."]
-            send_fn = receiver.send_config
-
-            if not send_fn(config_ubx(port_type)):
-                return False, "Failed to configure UBX output.", {}
-            logs.append(f"UBX output configured on {', '.join(port_type)}.")
-
-            raw_interval = cfg.get("logging", {}).get("raw_interval_s", 30)
-            if not send_fn(config_ubx_raw_interval(port_type, raw_interval)):
-                return False, "Failed to configure raw data interval.", {}
-            logs.append(f"Raw data interval set to {raw_interval}s.")
-
-            for msg in config_signals(multiband=is_multiband):
-                if not send_fn(msg):
-                    return False, "Failed to configure signal types.", {}
-            logs.append("Signal configuration applied.")
-
-            msm7 = use_msm7 == "true"
-            if not send_fn(config_rtcm(port_type, use_msm7=msm7)):
-                return False, "Failed to configure RTCM output.", {}
-            logs.append(f"RTCM3 {'MSM7' if msm7 else 'MSM4'} output configured.")
-
-            ok, tmode_log = _run_tmode_config(
-                send_fn,
+            ok, logs, err = _apply_config_msgs(
+                receiver.send_config,
+                port_type,
+                raw_interval,
+                config_signals(multiband=is_multiband),
+                msm7,
                 tmode,
                 acc_limit,
                 svin_min_dur,
@@ -243,47 +345,37 @@ async def configure(
                 ecef_x,
                 ecef_y,
                 ecef_z,
-                port_type,
             )
             if not ok:
-                return False, tmode_log, {}
-            if tmode_log:
-                logs.append(tmode_log)
-
+                return False, err, {}
             with receiver._lock:
                 receiver.state.tmode = tmode
                 if tmode != 1:
                     receiver.state.svin_active = False
                     receiver.state.svin_valid = False
-
+            logs.insert(0, f"Reconfiguring live connection on {', '.join(port_type)}.")
             receiver.save_config(serial_port, port_type[0], target_baud)
-            existing = (receiver.load_config() or {}).get("last_configure", {})
-            last = {
-                **existing,
-                "tmode": tmode,
-                "acc_limit": acc_limit,
-                "svin_min_dur": svin_min_dur,
-                "use_msm7": use_msm7 == "true",
-                "port_type": port_type,
-            }
-            if tmode == TMODE.Fixed:
-                last.update(
-                    {
-                        "coord_type": coord_type,
-                        "lat": lat,
-                        "lon": lon,
-                        "height": height,
-                        "ecef_x": ecef_x,
-                        "ecef_y": ecef_y,
-                        "ecef_z": ecef_z,
-                    }
+            save_last_configure(
+                _build_last_configure(
+                    existing,
+                    tmode,
+                    acc_limit,
+                    svin_min_dur,
+                    msm7,
+                    port_type,
+                    coord_type,
+                    lat,
+                    lon,
+                    height,
+                    ecef_x,
+                    ecef_y,
+                    ecef_z,
                 )
-            save_last_configure(last)
+            )
             return True, "\n".join(logs), {}
 
         # Not live — stop receiver, connect fresh, configure, restart
         receiver.stop(timeout=3.0)
-
         connect_port = port_type[0]
         stream, mon_ver = auto_baud_connect(serial_port, connect_port, target_baud)
         if not stream or mon_ver is None:
@@ -295,38 +387,12 @@ async def configure(
             for k, v in vars(mon_ver).items()
             if not k.startswith("_")
         }
-        logs = [f"Connected via {connect_port}."]
-        send_fn = lambda msg: send_msg(stream, msg)  # noqa: E731
-
-        if not send_fn(config_ubx(port_type)):
-            stream.close()
-            receiver.start()
-            return False, "Failed to configure UBX output.", receiver_info
-        logs.append(f"UBX output configured on {', '.join(port_type)}.")
-
-        raw_interval = cfg.get("logging", {}).get("raw_interval_s", 30)
-        if not send_fn(config_ubx_raw_interval(port_type, raw_interval)):
-            stream.close()
-            receiver.start()
-            return False, "Failed to configure raw data interval.", receiver_info
-        logs.append(f"Raw data interval set to {raw_interval}s.")
-
-        for msg in config_signals(mon_ver):
-            if not send_fn(msg):
-                stream.close()
-                receiver.start()
-                return False, "Failed to configure signal types.", receiver_info
-        logs.append("Signal configuration applied.")
-
-        msm7 = use_msm7 == "true"
-        if not send_fn(config_rtcm(port_type, use_msm7=msm7)):
-            stream.close()
-            receiver.start()
-            return False, "Failed to configure RTCM output.", receiver_info
-        logs.append(f"RTCM3 {'MSM7' if msm7 else 'MSM4'} output configured.")
-
-        ok, tmode_log = _run_tmode_config(
-            send_fn,
+        ok, logs, err = _apply_config_msgs(
+            lambda msg: send_msg(stream, msg),
+            port_type,
+            raw_interval,
+            config_signals(mon_ver=mon_ver),
+            msm7,
             tmode,
             acc_limit,
             svin_min_dur,
@@ -337,39 +403,30 @@ async def configure(
             ecef_x,
             ecef_y,
             ecef_z,
-            port_type,
         )
-        if not ok:
-            stream.close()
-            receiver.start()
-            return False, tmode_log, receiver_info
-        if tmode_log:
-            logs.append(tmode_log)
-
         stream.close()
+        if not ok:
+            receiver.start()
+            return False, err, receiver_info
+        logs.insert(0, f"Connected via {connect_port}.")
         receiver.save_config(serial_port, connect_port, target_baud)
-        existing = (receiver.load_config() or {}).get("last_configure", {})
-        last = {
-            **existing,
-            "tmode": tmode,
-            "acc_limit": acc_limit,
-            "svin_min_dur": svin_min_dur,
-            "use_msm7": use_msm7 == "true",
-            "port_type": port_type,
-        }
-        if tmode == TMODE.Fixed:
-            last.update(
-                {
-                    "coord_type": coord_type,
-                    "lat": lat,
-                    "lon": lon,
-                    "height": height,
-                    "ecef_x": ecef_x,
-                    "ecef_y": ecef_y,
-                    "ecef_z": ecef_z,
-                }
+        save_last_configure(
+            _build_last_configure(
+                existing,
+                tmode,
+                acc_limit,
+                svin_min_dur,
+                msm7,
+                port_type,
+                coord_type,
+                lat,
+                lon,
+                height,
+                ecef_x,
+                ecef_y,
+                ecef_z,
             )
-        save_last_configure(last)
+        )
         receiver.start()
         return True, "\n".join(logs), receiver_info
 
@@ -413,6 +470,15 @@ async def tmode_fields(
     if acc_limit is not None:
         last_cfg = {**last_cfg, "acc_limit": acc_limit}
     return templates.TemplateResponse(request, template, {"last_cfg": last_cfg})
+
+
+@app.get("/ntrip-in/status", response_class=HTMLResponse)
+async def ntrip_in_status_route(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "_ntrip_in_actions.html",
+        {"connected": ntrip_in_active()},
+    )
 
 
 @app.post("/ntrip-in/connect", response_class=HTMLResponse)

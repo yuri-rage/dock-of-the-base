@@ -1,25 +1,4 @@
-<div id="ntrip-in-actions" class="submit-row">
-    {% if connected %}
-        <button type="button"
-                class="primary"
-                hx-post="/ntrip-in/disconnect"
-                hx-target="#ntrip-in-actions"
-                hx-swap="outerHTML"
-                hx-disabled-elt="this">Disconnect</button>
-    {% else %}
-        <button type="button"
-                class="primary"
-                hx-post="/ntrip-in/connect"
-                hx-include="closest form"
-                hx-target="#ntrip-in-actions"
-                hx-swap="outerHTML"
-                hx-indicator="#ntrip-in-spinner"
-                hx-disabled-elt="this">Connect</button>
-        <span id="ntrip-in-spinner" class="htmx-indicator">
-            <span class="spinner"></span> Connecting&hellip;
-        </span>
-    {% endif %}
-</div>
+{% include "_ntrip_in_actions.html" %}
 <div id="result"
      hx-swap-oob="true"
      class="card {% if ok %}result-ok{% else %}result-error{% endif %}">

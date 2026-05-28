@@ -22,13 +22,14 @@ from pyrtcm import RTCMParseError
 from pyubx2 import POLL, UBXMessage, UBXMessageError, UBXParseError, UBXReader
 from serial import Serial, SerialException
 
-from app.ubx_cfg_valset import auto_baud_connect
+from app.ubx_cfg_valset import auto_baud_connect, config_fixed_ecef
 
 log = logging.getLogger(__name__)
 
 CONFIG_PATH = Path(__file__).parent.parent / "config.json"
 LOG_DIR = Path(__file__).parent.parent / "logs"
 RECONNECT_INTERVAL = 15.0
+NTRIP_IN_RECONNECT_INTERVAL = 30.0
 
 FIX_TYPES = {
     0: "No fix",
@@ -100,6 +101,7 @@ _ntrip_mount: str = "BASE"
 _ntrip_in_sock: socket.socket | None = None
 _ntrip_in_thread: threading.Thread | None = None
 _ntrip_in_active: bool = False
+_ntrip_in_status: str = "disconnected"
 
 # External NTRIP caster (output) state
 _ntrip_out_sock: socket.socket | None = None
@@ -116,6 +118,8 @@ _log_rotate_timer: threading.Timer | None = None
 _ack_event = threading.Event()
 _ack_ok: bool = False
 _config_lock = threading.Lock()
+
+_auto_fixed_pending: bool = False
 _CONFIG_TIMEOUT = 1.0
 
 
@@ -169,6 +173,18 @@ def ntrip_in_connected() -> bool | None:
     if not (load_config() or {}).get("ntrip_in"):
         return None
     return _ntrip_in_sock is not None
+
+
+def ntrip_in_active() -> bool:
+    """Returns True when the user has requested NTRIP-in (connected or reconnecting)."""
+    return _ntrip_in_active
+
+
+def ntrip_in_status_str() -> str | None:
+    """Returns detailed status string when ntrip_in is configured, None when unconfigured."""
+    if not (load_config() or {}).get("ntrip_in"):
+        return None
+    return _ntrip_in_status
 
 
 def ntrip_out_connected() -> bool | None:
@@ -471,6 +487,69 @@ def _stop_ntrip_server() -> None:
 # --- Receiver state updates ---
 
 
+def _handle_mon_ver(msg: Any) -> None:
+    multiband = False
+    for i in range(1, 31):
+        ext = getattr(msg, f"extension_{i:02d}", None)
+        if ext is None:
+            break
+        if isinstance(ext, bytes):
+            ext = ext.decode(errors="ignore")
+        if "X20" in ext:
+            multiband = True
+            break
+    state.is_multiband = multiband
+
+
+def _handle_nav_pvt(msg: Any) -> None:
+    state.fix_type = int(msg.fixType)
+    state.carrier_solution = int(msg.carrSoln)
+    state.lat = float(msg.lat)
+    state.lon = float(msg.lon)
+    state.height_m = float(msg.height) / 1000
+    state.height_msl_m = float(msg.hMSL) / 1000
+    state.h_acc_m = float(msg.hAcc) / 1000
+    state.v_acc_m = float(msg.vAcc) / 1000
+    state.num_sv = int(msg.numSV)
+
+
+def _handle_nav_svin(msg: Any) -> None:
+    global _auto_fixed_pending
+    was_active = state.svin_active
+    state.svin_active = bool(msg.active)
+    state.svin_valid = bool(msg.valid)
+    state.svin_obs = int(msg.obs)
+    state.svin_mean_acc_m = float(msg.meanAcc) / 10000
+    if state.svin_active:
+        state.tmode = 1
+        state.svin_ecef_x = int(msg.meanX) * 0.01 + int(msg.meanXHP) * 0.0001
+        state.svin_ecef_y = int(msg.meanY) * 0.01 + int(msg.meanYHP) * 0.0001
+        state.svin_ecef_z = int(msg.meanZ) * 0.01 + int(msg.meanZHP) * 0.0001
+    elif was_active and state.svin_valid:
+        _auto_fixed_pending = True
+
+
+def _handle_nav_dop(msg: Any) -> None:
+    state.pdop = float(msg.pDOP)
+    state.vdop = float(msg.vDOP)
+    state.hdop = float(msg.hDOP)
+
+
+def _handle_cfg_valget(msg: Any) -> None:
+    val = getattr(msg, "CFG_TMODE_MODE", None)
+    if val is not None:
+        state.tmode = int(val)
+
+
+_MSG_HANDLERS: dict[str, Any] = {
+    "MON-VER": _handle_mon_ver,
+    "NAV-PVT": _handle_nav_pvt,
+    "NAV-SVIN": _handle_nav_svin,
+    "NAV-DOP": _handle_nav_dop,
+    "CFG-VALGET": _handle_cfg_valget,
+}
+
+
 def _update(msg: Any) -> None:
     global _ack_ok
     if msg.identity == "ACK-ACK":
@@ -481,47 +560,10 @@ def _update(msg: Any) -> None:
         _ack_ok = False
         _ack_event.set()
         return
-    with _lock:
-        if msg.identity == "MON-VER":
-            multiband = False
-            for i in range(1, 31):
-                ext = getattr(msg, f"extension_{i:02d}", None)
-                if ext is None:
-                    break
-                if isinstance(ext, bytes):
-                    ext = ext.decode(errors="ignore")
-                if "X20" in ext:
-                    multiband = True
-                    break
-            state.is_multiband = multiband
-        elif msg.identity == "NAV-PVT":
-            state.fix_type = int(msg.fixType)
-            state.carrier_solution = int(msg.carrSoln)
-            state.lat = float(msg.lat)
-            state.lon = float(msg.lon)
-            state.height_m = float(msg.height) / 1000
-            state.height_msl_m = float(msg.hMSL) / 1000
-            state.h_acc_m = float(msg.hAcc) / 1000
-            state.v_acc_m = float(msg.vAcc) / 1000
-            state.num_sv = int(msg.numSV)
-        elif msg.identity == "NAV-SVIN":
-            state.svin_active = bool(msg.active)
-            state.svin_valid = bool(msg.valid)
-            state.svin_obs = int(msg.obs)
-            state.svin_mean_acc_m = float(msg.meanAcc) / 10000
-            if state.svin_active:
-                state.tmode = 1
-                state.svin_ecef_x = int(msg.meanX) * 0.01 + int(msg.meanXHP) * 0.0001
-                state.svin_ecef_y = int(msg.meanY) * 0.01 + int(msg.meanYHP) * 0.0001
-                state.svin_ecef_z = int(msg.meanZ) * 0.01 + int(msg.meanZHP) * 0.0001
-        elif msg.identity == "NAV-DOP":
-            state.pdop = float(msg.pDOP)
-            state.vdop = float(msg.vDOP)
-            state.hdop = float(msg.hDOP)
-        elif msg.identity == "CFG-VALGET":
-            val = getattr(msg, "CFG_TMODE_MODE", None)
-            if val is not None:
-                state.tmode = int(val)
+    handler = _MSG_HANDLERS.get(msg.identity)
+    if handler:
+        with _lock:
+            handler(msg)
 
 
 def _reset_nav() -> None:
@@ -547,6 +589,44 @@ def _reset_nav() -> None:
     _serial = None
 
 
+def _apply_auto_fixed() -> None:
+    """Persist surveyed position as Fixed mode to BBR/Flash after survey-in completes."""
+    global _auto_fixed_pending
+    _auto_fixed_pending = False
+    with _lock:
+        x, y, z = state.svin_ecef_x, state.svin_ecef_y, state.svin_ecef_z
+        acc_m = state.svin_mean_acc_m
+    if x is None or y is None or z is None or acc_m is None:
+        return
+    acc_limit = int(acc_m * 10000)  # metres → 0.1 mm units
+    if not send_config(config_fixed_ecef(acc_limit, x, y, z)):
+        log.warning("Auto-fixed: failed to persist Fixed mode after survey-in")
+        return
+    with _lock:
+        state.tmode = 2
+        state.svin_active = False
+    cfg = load_config() or {}
+    last = cfg.get("last_configure", {})
+    last.update(
+        {
+            "tmode": 2,
+            "coord_type": "ecef",
+            "ecef_x": x,
+            "ecef_y": y,
+            "ecef_z": z,
+            "acc_limit": acc_m,
+        }
+    )
+    save_last_configure(last)
+    log.info(
+        "Auto-fixed: X=%.4f Y=%.4f Z=%.4f acc=%.4f m persisted to BBR/Flash",
+        x,
+        y,
+        z,
+        acc_m,
+    )
+
+
 def _reader_loop(stream: _TeeStream) -> None:
     reader = UBXReader(stream, protfilter=6, quitonerror=0)  # UBX + RTCM
     while not _stop.is_set():
@@ -556,6 +636,12 @@ def _reader_loop(stream: _TeeStream) -> None:
                 if msg:
                     if isinstance(msg, UBXMessage):
                         _update(msg)
+                        if _auto_fixed_pending:
+                            threading.Thread(
+                                target=_apply_auto_fixed,
+                                daemon=True,
+                                name="auto-fixed",
+                            ).start()
                     elif raw:
                         _forward_ntrip(raw)
                         _forward_ntrip_out(raw)
@@ -667,39 +753,63 @@ def _ntrip_in_connect(cfg: dict) -> socket.socket | None:
         return None
 
 
-def _ntrip_in_run(sock: socket.socket) -> None:
-    global _ntrip_in_sock
-    _ntrip_in_sock = sock
+def _ntrip_in_recv(sock: socket.socket) -> bool:
+    """Receive RTCM corrections, forwarding to serial. Returns True if server dropped (reconnect), False to stop."""
+    while not _stop.is_set() and _ntrip_in_active:
+        if not _ntrip_in_wanted():
+            log.info("NTRIP-in: disconnecting — Fixed mode active")
+            return False
+        try:
+            data = sock.recv(4096)
+            if not data:
+                log.warning("NTRIP-in: server closed connection")
+                return True
+            if _serial and _serial.is_open:
+                _serial.write(data)
+        except TimeoutError:
+            continue
+        except OSError as e:
+            if _ntrip_in_active:
+                log.warning("NTRIP-in: socket error: %s", e)
+            return True
+    return False
+
+
+def _ntrip_in_loop(cfg: dict, initial_sock: socket.socket) -> None:
+    global _ntrip_in_sock, _ntrip_in_status
+    sock: socket.socket | None = initial_sock
     try:
         while not _stop.is_set() and _ntrip_in_active:
-            if not _ntrip_in_wanted():
-                log.info("NTRIP-in: disconnecting — Fixed mode active")
-                break
+            if sock is None:
+                sock = _ntrip_in_connect(cfg)
+                if sock is None:
+                    _stop.wait(NTRIP_IN_RECONNECT_INTERVAL)
+                    continue
+            _ntrip_in_sock = sock
+            _ntrip_in_status = "connected"
             try:
-                data = sock.recv(4096)
-                if not data:
-                    log.warning("NTRIP-in: server closed connection")
-                    break
-                if _serial and _serial.is_open:
-                    _serial.write(data)
-            except TimeoutError:
-                continue
-            except OSError as e:
-                if _ntrip_in_active:
-                    log.warning("NTRIP-in: socket error: %s", e)
+                reconnect = _ntrip_in_recv(sock)
+            finally:
+                _ntrip_in_sock = None
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+                sock = None
+            if not reconnect:
                 break
+            if not _stop.is_set():
+                _ntrip_in_status = "reconnecting"
+                log.info("NTRIP-in: reconnecting in %.0fs", NTRIP_IN_RECONNECT_INTERVAL)
+                _stop.wait(NTRIP_IN_RECONNECT_INTERVAL)
     finally:
-        _ntrip_in_sock = None
-        try:
-            sock.close()
-        except OSError:
-            pass
+        _ntrip_in_status = "disconnected"
         log.info("NTRIP-in: disconnected")
 
 
 def ntrip_in_connect() -> str | None:
     """Connect to NTRIP source synchronously. Returns an error string on failure, None on success."""
-    global _ntrip_in_active, _ntrip_in_thread
+    global _ntrip_in_active, _ntrip_in_thread, _ntrip_in_status
     with _lock:
         tmode = state.tmode
     if tmode == 2:
@@ -711,16 +821,18 @@ def ntrip_in_connect() -> str | None:
     if not sock:
         return "Failed to connect to NTRIP source."
     _ntrip_in_active = True
+    _ntrip_in_status = "connected"
     _ntrip_in_thread = threading.Thread(
-        target=_ntrip_in_run, args=(sock,), daemon=True, name="ntrip-in"
+        target=_ntrip_in_loop, args=(ntrip_in, sock), daemon=True, name="ntrip-in"
     )
     _ntrip_in_thread.start()
     return None
 
 
 def ntrip_in_disconnect() -> None:
-    global _ntrip_in_active
+    global _ntrip_in_active, _ntrip_in_status
     _ntrip_in_active = False
+    _ntrip_in_status = "disconnected"
     if _ntrip_in_sock:
         try:
             _ntrip_in_sock.close()

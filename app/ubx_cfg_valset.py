@@ -266,6 +266,7 @@ def config_signals(
     if is_mb:
         extended: list[tuple[int | str, object]] = [
             ("CFG_SIGNAL_GPS_L5_ENA", 1),
+            ("CFG_SIGNAL_HEALTH_L5", 1),  # ignore pre-operational L5 health flags
             ("CFG_SIGNAL_BDS_B1C_ENA", 1),
             ("CFG_SIGNAL_BDS_B2A_ENA", 1),
             ("CFG_SIGNAL_BDS_B3_ENA", 1),

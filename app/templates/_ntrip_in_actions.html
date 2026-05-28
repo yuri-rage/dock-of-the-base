@@ -1,0 +1,27 @@
+<div id="ntrip-in-actions"
+     class="submit-row"
+     hx-get="/ntrip-in/status"
+     hx-target="this"
+     hx-trigger="every 5s"
+     hx-swap="outerHTML">
+    {% if connected %}
+        <button type="button"
+                class="primary"
+                hx-post="/ntrip-in/disconnect"
+                hx-target="#ntrip-in-actions"
+                hx-swap="outerHTML"
+                hx-disabled-elt="this">Disconnect</button>
+    {% else %}
+        <button type="button"
+                class="primary"
+                hx-post="/ntrip-in/connect"
+                hx-include="closest form"
+                hx-target="#ntrip-in-actions"
+                hx-swap="outerHTML"
+                hx-indicator="#ntrip-in-spinner"
+                hx-disabled-elt="this">Connect</button>
+        <span id="ntrip-in-spinner" class="htmx-indicator">
+            <span class="spinner"></span> Connecting&hellip;
+        </span>
+    {% endif %}
+</div>

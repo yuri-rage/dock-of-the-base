@@ -1,0 +1,13 @@
+{% if serial_ports %}
+    <select name="serial_port">
+        {% for p in serial_ports %}
+            <option value="{{ p }}"
+                    {% if p == cfg.get('serial_port') %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+    </select>
+{% else %}
+    <input type="text"
+           name="serial_port"
+           value="{{ cfg.get('serial_port', '/dev/ttyUSB0') }}"
+           required>
+{% endif %}

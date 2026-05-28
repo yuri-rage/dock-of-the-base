@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <title>Dock of the Base</title>
+        {% set local_caster = cfg.get('local_caster', {}) %}
+        {% set mp = local_caster.get('mount_point', '') %}
+        {% set pt = local_caster.get('port', 0) %}
+        <title>{{ (mp ~ ' - ') if pt and mp else '' }}Dock of the Base</title>
         <link rel="icon" type="image/png" href="/static/favicon.png">
         <link rel="stylesheet" href="/static/styles.css">
         <script src="/static/htmx.min.js"></script>
@@ -19,20 +22,35 @@
                               hx-indicator="#spinner">
                             <div class="field">
                                 <label>Serial port</label>
-                                {% if serial_ports %}
-                                    <select name="serial_port">
-                                        {% for p in serial_ports %}
-                                            <option value="{{ p }}"
-                                                    {% if p == cfg.get('serial_port') %}selected{% endif %}>
-                                                {{ p }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                {% else %}
-                                    <input type="text"
-                                           name="serial_port"
-                                           value="{{ cfg.get('serial_port', '/dev/ttyUSB0') }}"
-                                           required>
+                                <div id="serial-port-select">
+                                    {% if serial_ports %}
+                                        <select name="serial_port">
+                                            {% for p in serial_ports %}
+                                                <option value="{{ p }}"
+                                                        {% if p == cfg.get('serial_port') %}selected{% endif %}>
+                                                    {{ p }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    {% else %}
+                                        <input type="text"
+                                               name="serial_port"
+                                               value="{{ cfg.get('serial_port', '/dev/ttyUSB0') }}"
+                                               required>
+                                    {% endif %}
+                                </div>
+                                {% if cfg.get('tty_exclude') %}
+                                    <div class="checkgroup">
+                                        <label class="check-label">
+                                            <input type="checkbox"
+                                                   hx-get="/serial-ports"
+                                                   hx-target="#serial-port-select"
+                                                   hx-swap="innerHTML"
+                                                   hx-trigger="change"
+                                                   hx-vals='js:{"show_all": event.target.checked}'>
+                                            List all ports
+                                        </label>
+                                    </div>
                                 {% endif %}
                             </div>
                             <div class="field">
@@ -203,28 +221,8 @@
                                            value="{{ ni.get('password', '') }}"
                                            autocomplete="off">
                                 </div>
-                                <div id="ntrip-in-actions" class="submit-row">
-                                    {% if ntrip_in_status %}
-                                        <button type="button"
-                                                class="primary"
-                                                hx-post="/ntrip-in/disconnect"
-                                                hx-target="#ntrip-in-actions"
-                                                hx-swap="outerHTML"
-                                                hx-disabled-elt="this">Disconnect</button>
-                                    {% else %}
-                                        <button type="button"
-                                                class="primary"
-                                                hx-post="/ntrip-in/connect"
-                                                hx-include="closest form"
-                                                hx-target="#ntrip-in-actions"
-                                                hx-swap="outerHTML"
-                                                hx-indicator="#ntrip-in-spinner"
-                                                hx-disabled-elt="this">Connect</button>
-                                        <span id="ntrip-in-spinner" class="htmx-indicator">
-                                            <span class="spinner"></span> Connecting&hellip;
-                                        </span>
-                                    {% endif %}
-                                </div>
+                                {% set connected = ntrip_in_active %}
+                                {% include "_ntrip_in_actions.html" %}
                             </div>
                         </form>
                         {% set ec = cfg.get('external_caster', {}) %}

@@ -29,7 +29,12 @@
                             <br />
                             Observations: {{ state.svin_obs }}
                             <br />
-                            Mean 3D StdDev: {{ "%.02f"|format(state.svin_mean_acc_m) }} m
+                            Mean 3D StdDev:
+                            {% if state.svin_mean_acc_m >= 1 %}
+                                {{ "%.02f"|format(state.svin_mean_acc_m) }} m
+                            {% else %}
+                                {{ "%.01f"|format(state.svin_mean_acc_m * 100) }} cm
+                            {% endif %}
                         {% elif state.tmode == 1 and state.svin_valid %}
                             — complete
                         {% endif %}
@@ -83,9 +88,19 @@
                 <tr>
                     <td>Accuracy</td>
                     <td class="muted">
-                        hAcc: ±{{ "%.03f"|format(state.h_acc_m) }} m
+                        hAcc: ±
+                        {% if state.h_acc_m >= 1 %}
+                            {{ "%.02f"|format(state.h_acc_m) }} m
+                        {% else %}
+                            {{ "%.01f"|format(state.h_acc_m * 100) }} cm
+                        {% endif %}
                         <br />
-                        vAcc: ±{{ "%.03f"|format(state.v_acc_m) }} m
+                        vAcc: ±
+                        {% if state.v_acc_m >= 1 %}
+                            {{ "%.02f"|format(state.v_acc_m) }} m
+                        {% else %}
+                            {{ "%.01f"|format(state.v_acc_m * 100) }} cm
+                        {% endif %}
                     </td>
                 </tr>
             {% endif %}
@@ -142,12 +157,14 @@
             </span>
         </div>
     {% endif %}
-    {% if ntrip_in_connected is not none and state.tmode != 2 %}
+    {% if ntrip_in_status is not none and state.tmode != 2 %}
         <div class="status-header" style="margin-top: 0.5rem">
-            <span class="status-dot {% if ntrip_in_connected %}dot-ok{% else %}dot-err{% endif %}"></span>
+            <span class="status-dot {% if ntrip_in_status == 'connected' %}dot-ok{% else %}dot-err{% endif %}"></span>
             <span class="muted">NTRIP in &mdash;
-                {% if ntrip_in_connected %}
+                {% if ntrip_in_status == 'connected' %}
                     receiving corrections
+                {% elif ntrip_in_status == 'reconnecting' %}
+                    reconnecting&hellip;
                 {% else %}
                     disconnected
                 {% endif %}
