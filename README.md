@@ -80,6 +80,8 @@ The web app provides multiple options for configuring local and external network
 **NTRIP Input:**
 - Used for receiving corrections from an external NTRIP caster during Survey-In. NTRIP input is disabled in Fixed mode, as it is not applicable when the base station is providing corrections.
 
+> NOTE: Sending GGA messages is only required for VRS or NRS mount points (typically included in the mount point name, e.g., `SOME_NTRIP_SOURCE_VRS`).
+
 **Logging:**
 - Configure logging options to capture raw GNSS observation data for PPK post-processing or other analysis. Recommend using 30 second observation intervals to keep log file sizes from growing very large.
 - The produced .ubx log files contain `RAWX` and `SFRBX` UBX messages.
