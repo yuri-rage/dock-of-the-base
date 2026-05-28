@@ -1,6 +1,6 @@
 # Dock of the Base
 
-Docker-based GNSS fixed base station configuration for u-Blox GNSS receivers. 
+Docker-based GNSS fixed base station configuration for u-Blox GNSS receivers.
 
 Designed for use with ZED-F9-series and ZED-X20-series receivers.
 
@@ -16,6 +16,7 @@ TODO
 - Navigate to `http://<host-ip>` using a web browser on the same local network.
 - Choose the hardware serial port on which the receiver is connected.
   - (often `/dev/ttyUSB0` or `/dev/ttyACM0`)
+  - The device list is automatically filtered to include only the most common devices. If your device is not listed, click "List all ports" below the device selection dropdown.
 - Select the receiver's ports to configure
   - (typically USB and/or UART1)
 - Choose the baud rate
@@ -23,33 +24,37 @@ TODO
 - Choose "Fixed" under "Time mode," and enter antenna location data.
 - Click "Configure receiver" to save the settings and connect to the receiver.
 
+> NOTE: If the receiver was previously configured, it's best to reset it before configuring (click "Revert to default").
+
 ## Survey-In
 
 - Follow "Quick Start" above, but choose "Survey-In" under "Time mode" instead.
 - Configure the desired duration and accuracy limit
   - (typically at least 15 minutes and 1m accuracy - longer is better)
 - Click "Configure receiver" to save the settings and connect to the receiver.
-- Optionally connect to an external NTRIP service to improve convergence by entering the NTRIP caster details under "Network & Data Services" / "NTRIP Input."
+- Optionally, connect to an external NTRIP service to improve convergence by entering the NTRIP caster details under "Network & Data Services" / "NTRIP Input."
 
 > NOTE: A self-survey may be canceled at any time by selecting "Fixed" mode. An option to use the current survey state location/accuracy will be presented.
 
-> NOTE: A self-survey usually only provides absolute accuracy of about 1-2 meters, even when the reported standard deviation is much finer. Do not use a self-survey for high-accuracy applications. However, once surveyed-in, all relative corrections will be consistent over time, thus local waypoints and references can be used with a high degree of cm-level repeatability so long as the fixed mode coordinates remain the same. A one-time self-survey is usually sufficient for most hobby/non-critical applications. For high-accuracy/professional applications, consider having the antenna location professionally surveyed. As an alternative, consider PPK post-processing as described below.
+> NOTE: Survey-In is typically a one-time operation. Once complete, save the result as Fixed mode — the base station will use those coordinates on every subsequent boot without re-surveying.
+
+> NOTE: A self-survey's *absolute* accuracy is typically only 1-2 meters, even when the reported standard deviation converges much finer. This does not affect rover *repeatability*: all RTCM corrections are relative to the fixed base position, so rovers will return to saved waypoints with cm-level consistency regardless of absolute accuracy, as long as the base station coordinates do not change. For applications requiring absolute geodetic accuracy, have the antenna location professionally surveyed or use PPK post-processing.
 
 ## Network & Data Services
 
 The web app provides multiple options for configuring local and external network services, along with data-logging.
 
-Local network services:
+**Local network services:**
 - A TCP repeater that forwards all serial data between the receiver and connected clients. It can be used to connect [u-Center software](https://www.u-blox.com/en/product/u-center) for real-time monitoring or advanced configuration.
 - A local NTRIP caster for RTCM3 forwarding within the local network.
 
-NTRIP Output:
+**NTRIP Output:**
 - If pushing corrections to an external service, such as [RTK2Go](https://www.rtk2go.com/) or [GeoAstra](https://www.geoastra.com/), is desired, configure the "NTRIP Output" section with credentials and external caster details.
 
-NTRIP Input:
-- Used for receiving corrections from an external NTRIP caster during Survey-In or non-time-mode operation.
+**NTRIP Input:**
+- Used for receiving corrections from an external NTRIP caster during Survey-In. NTRIP input is disabled in Fixed mode, as it is not applicable when the base station is providing corrections.
 
-Logging:
+**Logging:**
 - Configure logging options to capture raw GNSS observation data for PPK post-processing or other analysis. Recommend using 30 second observation intervals to keep log file sizes from growing very large.
 - The produced .ubx log files contain `RAWX` and `SFRBX` UBX messages.
 - For convenience, completed .ubx log files are automatically converted to RINEX .obs and .nav files using `convbin` from [RTKLIB](https://github.com/tomojitakasu/RTKLIB).
