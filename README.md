@@ -85,6 +85,8 @@ The web app provides multiple options for configuring local and external network
 - The produced .ubx log files contain `RAWX` and `SFRBX` UBX messages.
 - For convenience, completed .ubx log files are automatically converted to RINEX .obs and .nav files using `convbin` from [RTKLIB](https://github.com/tomojitakasu/RTKLIB).
 
+> NOTE: When using Docker, log files on the host will be owned by `root`. They can be managed (downloaded or deleted) via the web interface.
+
 ## Post-processing
 
 TODO (but mostly just upload .obs files to OPUS)
