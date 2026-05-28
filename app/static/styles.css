@@ -95,6 +95,15 @@ textarea:focus {
     box-shadow: 0 0 0 2px oklch(0.556 0 0 / 30%);
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+    width: auto;
+    padding: 0;
+    border: none;
+    background: none;
+    box-shadow: none;
+}
+
 .container {
     max-width: 1100px;
     margin: 2rem auto;
