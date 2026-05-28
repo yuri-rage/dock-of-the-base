@@ -1,0 +1,28 @@
+{
+  "target_baud": 230400,
+  "tty_exclude": "^tty(\\d+|S\\d+)?$",
+  "tcp_port": 9999,
+  "local_caster": {
+    "port": 2101,
+    "mount_point": "BASE"
+  },
+  "external_caster": {
+    "url": "http://rtk2go.com",
+    "port": 0,
+    "mount_point": "",
+    "password": ""
+  },
+  "ntrip_in": {
+    "url": "http://rtk2go.com",
+    "port": 2101,
+    "mount_point": "",
+    "username": "",
+    "password": ""
+  },
+  "logging": {
+    "enabled": false,
+    "raw_interval_s": 30,
+    "file_duration_h": 4.0,
+    "retention_days": 2
+  }
+}
