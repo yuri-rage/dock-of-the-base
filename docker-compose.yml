@@ -1,0 +1,12 @@
+services:
+  dock-of-the-base:
+    image: yurirage/dock-of-the-base:latest
+    build: .
+    restart: unless-stopped
+    privileged: true # broad serial port access - eases config for inexperienced users
+    network_mode: host # broad TCP/NTRIP port exposure for the same reason
+    volumes:
+      - ./config.json:/app/config.json
+      - ./logs:/app/logs
+    environment:
+      - LOG_LEVEL=INFO
