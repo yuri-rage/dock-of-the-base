@@ -316,6 +316,24 @@ pre {
     transform: translateX(1rem);
 }
 
+.section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-title img {
+    width: 1.25rem;
+    height: 1.25rem;
+    display: block;
+    transform: translateY(-0.2em);
+}
+
+.section-title img.disconnected {
+    filter: grayscale(100%) brightness(0.8);
+    opacity: 0.6;
+}
+
 .status-header {
     display: flex;
     align-items: center;
