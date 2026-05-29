@@ -26,7 +26,7 @@ Start the service:
 docker compose up -d
 ```
 
-The image will be pulled from Docker Hub automatically on first run. Navigate to `http://<host-ip>:8000` to access the web interface.
+The image will be pulled from Docker Hub automatically on first run. Navigate to `http://<host-ip>:8765` to access the web interface.
 
 To stop the service:
 
@@ -39,7 +39,7 @@ docker compose down
 ## Quick Start
 
 - Connect the receiver to the host via USB or UART/serial port.
-- Navigate to `http://<host-ip>` using a web browser on the same local network.
+- Navigate to `http://<host-ip>:8765` using a web browser on the same local network.
 - Choose the hardware serial port on which the receiver is connected.
   - (often `/dev/ttyUSB0` or `/dev/ttyACM0`)
   - The device list is automatically filtered to include only the most common devices. If your device is not listed, click "List all ports" below the device selection dropdown.
