@@ -49,6 +49,7 @@ docker compose down
   - (recommend 230,400)
 - Choose "Fixed" under "Time mode," and enter antenna location data.
 - Click "Configure receiver" to save the settings and connect to the receiver.
+- Once configured, RTCM3 message counts by type are displayed in the status pane. A heartbeat indicator pulses with each status update to confirm the app is running normally.
 
 > NOTE: If the receiver was previously configured, it's best to reset it before configuring (click "Revert to default").
 
@@ -62,7 +63,7 @@ docker compose down
 
 > NOTE: A self-survey may be canceled at any time by selecting "Fixed" mode. An option to use the current survey state location/accuracy will be presented.
 
-> NOTE: Survey-In is typically a one-time operation. Once complete, save the result as Fixed mode — the base station will use those coordinates on every subsequent boot without re-surveying.
+> NOTE: Survey-In is typically a one-time operation. Once complete, save the result as Fixed mode - the base station will use those coordinates on every subsequent boot without re-surveying.
 
 > NOTE: A self-survey's *absolute* accuracy is typically only 1-2 meters, even when the reported standard deviation converges much finer. This does not affect rover *repeatability*: all RTCM corrections are relative to the fixed base position, so rovers will return to saved waypoints with cm-level consistency regardless of absolute accuracy, as long as the base station coordinates do not change. For applications requiring absolute geodetic accuracy, have the antenna location professionally surveyed or use PPK post-processing.
 

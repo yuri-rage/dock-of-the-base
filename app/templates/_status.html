@@ -180,8 +180,11 @@
     {% endif %}
     {% if rtcm3_counts %}
         <hr />
-        <table class="receiver-info">
-            <caption>RTCM3 <span class="subdued">(since page load)</span></caption>
+        <div class="rtcm3-caption">
+            <span>RTCM3 <span class="subdued">(since page load)</span></span>
+            <span class="rtcm3-heartbeat">&#9829;</span>
+        </div>
+        <table class="receiver-info" style="margin-top: 0">
             {% for msg_type, count in rtcm3_counts.items() %}
                 <tr data-rtcm3-type="{{ msg_type }}" data-rtcm3-count="{{ count }}">
                     <td>

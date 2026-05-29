@@ -243,8 +243,10 @@ pre {
 
 .subdued {
     color: var(--muted-foreground);
-    text-transform: lowercase;
-    font-weight: 300;
+    text-transform: none;
+    font-weight: 400;
+    letter-spacing: 0;
+    font-size: 0.8rem;
 }
 
 .tabs {
@@ -375,6 +377,45 @@ pre {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     padding-bottom: 0.25rem;
+}
+
+.rtcm3-caption {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: 0.25rem;
+    margin-top: 0.75rem;
+}
+
+@keyframes heart-fade {
+    0% {
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    40% {
+        opacity: 0.15;
+    }
+    70% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.rtcm3-heartbeat {
+    animation: heart-fade 1s ease-out forwards;
+    color: oklch(0.72 0.19 25);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
 }
 
 .receiver-info td {
