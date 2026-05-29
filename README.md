@@ -72,6 +72,8 @@ docker compose down
 
 The web app provides multiple options for configuring local and external network services, along with data-logging.
 
+> NOTE: This app is designed for use on a trusted local network. NTRIP credentials are stored in plaintext - do not expose the container's port to the internet. To share corrections with external services, use the NTRIP Output feature instead.
+
 **Local network services:**
 
 - A TCP repeater that forwards all serial data between the receiver and connected clients. It can be used to connect [u-Center software](https://www.u-blox.com/en/product/u-center) for real-time monitoring or advanced configuration.
