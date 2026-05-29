@@ -128,6 +128,10 @@ _config_lock = threading.Lock()
 _auto_fixed_pending: bool = False
 _CONFIG_TIMEOUT = 1.0
 
+# RTCM3 message counts (reset on reconnect)
+_rtcm3_counts: dict[int, int] = {}
+_rtcm3_lock = threading.Lock()
+
 
 def load_config() -> dict | None:
     if CONFIG_PATH.exists():
@@ -206,6 +210,16 @@ def ntrip_out_status_str() -> str | None:
     if not (load_config() or {}).get("external_caster"):
         return None
     return _ntrip_out_status
+
+
+def rtcm3_counts() -> dict[int, int]:
+    with _rtcm3_lock:
+        return dict(sorted(_rtcm3_counts.items()))
+
+
+def reset_rtcm3_counts() -> None:
+    with _rtcm3_lock:
+        _rtcm3_counts.clear()
 
 
 # --- TCP bridge ---
@@ -579,8 +593,18 @@ def _update(msg: Any) -> None:
             handler(msg)
 
 
+def _count_rtcm3(raw: bytes) -> None:
+    if len(raw) < 5 or raw[0] != 0xD3:
+        return
+    msg_type = (raw[3] << 4) | (raw[4] >> 4)
+    with _rtcm3_lock:
+        _rtcm3_counts[msg_type] = _rtcm3_counts.get(msg_type, 0) + 1
+
+
 def _reset_nav() -> None:
     global _serial
+    with _rtcm3_lock:
+        _rtcm3_counts.clear()
     with _lock:
         state.connected = False
         state.is_multiband = False
@@ -656,6 +680,7 @@ def _reader_loop(stream: _TeeStream) -> None:
                                 name="auto-fixed",
                             ).start()
                     elif raw:
+                        _count_rtcm3(raw)
                         _forward_ntrip(raw)
                         _forward_ntrip_out(raw)
             else:

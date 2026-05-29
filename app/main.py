@@ -38,6 +38,8 @@ from app.receiver import (
     ntrip_out_disconnect,
     ntrip_out_status_str,
     ntrip_port,
+    reset_rtcm3_counts,
+    rtcm3_counts,
     save_last_configure,
 )
 from app.ubx_cfg_valset import (
@@ -56,6 +58,31 @@ from app.ubx_cfg_valset import (
     config_ubx_raw_interval,
     send_msg,
 )
+
+RTCM3_NAMES: dict[int, str] = {
+    1005: "Stationary ARP",
+    1006: "Stationary ARP + height",
+    1007: "Antenna descriptor",
+    1008: "Antenna/receiver descriptor",
+    1033: "Receiver/antenna descriptor",
+    1074: "GPS MSM4",
+    1075: "GPS MSM5",
+    1076: "GPS MSM6",
+    1077: "GPS MSM7",
+    1084: "GLONASS MSM4",
+    1085: "GLONASS MSM5",
+    1086: "GLONASS MSM6",
+    1087: "GLONASS MSM7",
+    1094: "Galileo MSM4",
+    1095: "Galileo MSM5",
+    1096: "Galileo MSM6",
+    1097: "Galileo MSM7",
+    1124: "BeiDou MSM4",
+    1125: "BeiDou MSM5",
+    1126: "BeiDou MSM6",
+    1127: "BeiDou MSM7",
+    1230: "GLONASS biases",
+}
 
 logging.basicConfig(
     level=logging.INFO,
@@ -291,6 +318,8 @@ async def status(request: Request):
             "ntrip_out_status": ntrip_out_status_str(),
             "ntrip_out_url": ntrip_out_url,
             "ntrip_in_status": ntrip_in_status_str(),
+            "rtcm3_counts": rtcm3_counts(),
+            "rtcm3_names": RTCM3_NAMES,
         },
     )
 
@@ -370,6 +399,7 @@ async def configure(
                 if tmode != 1:
                     receiver.state.svin_active = False
                     receiver.state.svin_valid = False
+            reset_rtcm3_counts()
             logs.insert(0, f"Reconfiguring live connection on {', '.join(port_type)}.")
             receiver.save_config(serial_port, port_type[0], target_baud)
             save_last_configure(

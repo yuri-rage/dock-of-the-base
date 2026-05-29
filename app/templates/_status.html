@@ -178,4 +178,19 @@
             </span>
         </div>
     {% endif %}
+    {% if rtcm3_counts %}
+        <hr />
+        <table class="receiver-info">
+            <caption>RTCM3 <span class="subdued">(since page load)</span></caption>
+            {% for msg_type, count in rtcm3_counts.items() %}
+                <tr data-rtcm3-type="{{ msg_type }}" data-rtcm3-count="{{ count }}">
+                    <td>
+                        {{ msg_type }}
+                        {% if msg_type in rtcm3_names %}<span class="muted">{{ rtcm3_names[msg_type] }}</span>{% endif %}
+                    </td>
+                    <td>&mdash;</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
 </div>

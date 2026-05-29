@@ -241,6 +241,12 @@ pre {
     margin: 0 0 0.75rem;
 }
 
+.subdued {
+    color: var(--muted-foreground);
+    text-transform: lowercase;
+    font-weight: 300;
+}
+
 .tabs {
     display: flex;
     gap: 0.25rem;
