@@ -1,5 +1,8 @@
 <div id="result" class="card result-ok">
-    <strong>Network config applied</strong>
+    <div style="display: flex; align-items: center; justify-content: space-between">
+        <strong>Network config applied</strong>
+        <button type="button" class="btn-sm" onclick="dismissResult()" title="Dismiss">&#x2715;</button>
+    </div>
     <pre>
 TCP repeater: {% if tcp_port %}port {{ tcp_port }}{% else %}disabled{% endif %}
 NTRIP caster: {% if ntrip_port %}port {{ ntrip_port }}/{{ ntrip_mount }}{% else %}disabled{% endif %}</pre>

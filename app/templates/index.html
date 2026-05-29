@@ -459,6 +459,11 @@
         }
     });
 
+    function dismissResult() {
+        var el = document.getElementById('result');
+        if (el) el.outerHTML = '<div id="result"></div>';
+    }
+
     // Survey-in convergence sparkline
     (function () {
         var svinData = [];
@@ -604,6 +609,13 @@
             var card = document.getElementById('status-card');
             if (card) updateSparkline(card);
         });
+
+        window.dismissSparkline = function () {
+            clearStorage();
+            svinData.length = 0;
+            svState = 'idle';
+            document.getElementById('svin-sparkline').style.display = 'none';
+        };
     })();
                     </script>
                 </div>
@@ -621,7 +633,13 @@
                          class="card"
                          style="display: none;
                                 margin-top: 0.5rem">
-                        <p class="caption" style="margin: 0 0 0.5rem">Survey-In Convergence</p>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin: 0 0 0.5rem">
+                            <p class="caption" style="margin: 0">Survey-In Convergence</p>
+                            <button type="button"
+                                    class="btn-sm"
+                                    onclick="dismissSparkline()"
+                                    title="Dismiss">&#x2715;</button>
+                        </div>
                         <canvas id="svin-canvas" style="display: block; width: 100%"></canvas>
                     </div>
                     <div id="result"></div>

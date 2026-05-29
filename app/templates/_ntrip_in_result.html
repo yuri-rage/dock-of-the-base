@@ -2,12 +2,9 @@
 <div id="result"
      hx-swap-oob="true"
      class="card {% if ok %}result-ok{% else %}result-error{% endif %}">
-    <strong>
-        {% if ok %}
-            Success
-        {% else %}
-            Error
-        {% endif %}
-    </strong>
+    <div style="display: flex; align-items: center; justify-content: space-between">
+        <strong>{% if ok %}Success{% else %}Error{% endif %}</strong>
+        <button type="button" class="btn-sm" onclick="dismissResult()" title="Dismiss">&#x2715;</button>
+    </div>
     <pre>{{ message }}</pre>
 </div>
