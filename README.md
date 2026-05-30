@@ -8,7 +8,7 @@ Provides a web app and persistent serial connection to the base station receiver
 
 ## INSTALLATION
 
-Requires [Docker](https://docs.docker.com/engine/install/) with the Compose plugin.
+Requires [Docker](https://docs.docker.com/engine/install/) with the Compose plugin. For Raspberry Pi, see the [detailed installation instructions](#raspberry-pi-detailed-installation) below.
 
 > NOTE: This app is untested on Windows. Docker Desktop does not support USB device passthrough; however, running Docker under WSL2 with [usbipd-win](https://github.com/dorssel/usbipd-win) should work. See the [usbipd-win documentation](https://learn.microsoft.com/en-us/windows/wsl/connect-usb) for setup instructions.
 
@@ -102,3 +102,25 @@ The web app provides multiple options for configuring local and external network
 - Download the .obs file from the web interface and upload it to [OPUS](https://geodesy.noaa.gov/OPUS/) for post-processing. Aim for at least 2 hours of data; waiting 24+ hours after collection helps ensure CORS coverage.
   - Antenna selection affects primarily vertical accuracy - use the actual model when available, or the closest match. For example, TPSCR.G3 TPSH is a reasonable match for the all-band survey antenna sold by [gnss.store](https://gnss.store/products/elt0123).
 - The generated .nav file can be used alongside the .obs file in tools such as [RTKLIB](https://github.com/tomojitakasu/RTKLIB). It's also helpful (in the US) to download CORS data from [NGS UFCORS](https://geodesy.noaa.gov/UFCORS/) when post-processing with RTKLIB.
+
+## RASPBERRY PI DETAILED INSTALLATION
+
+Dock of the Base can be installed on a Raspberry Pi and has been tested on a Pi Zero 2 W, so it should work on any Raspberry Pi model with at least 512MB RAM and a 64-bit operating system.
+
+- Follow the [Raspberry Pi documentation](https://www.raspberrypi.com/documentation/computers/getting-started.html#imager-install) to install the "Raspberry Pi OS Lite (64-bit)" image, found under "Raspberry Pi OS (other)" in the Imager.
+- Once installed, SSH into your Raspberry Pi and run the following commands to update it and install Docker:
+  ```
+  sudo apt update && sudo apt upgrade -y
+  sudo apt install -y docker.io docker-compose-plugin
+  ```
+- (Skip these steps if using USB to connect the GPS receiver)
+  - Issue `sudo raspi-config` to [enable the serial port](https://www.raspberrypi.com/documentation/computers/configuration.html#serial-port) (choose "No" when prompted to enable the login shell).
+  - Wire the GPS receiver's TX, RX, and ground pins to the Raspberry Pi's serial port on the 40-pin header. The available 5V or 3.3V pins on the Pi should be sufficient to power most common GPS receiver boards, as well, if a separate power supply is not used. Take care not to short-circuit the power pins, and use the appropriate voltage for your hardware.
+- Add yourself to the `docker` group to avoid needing to use `sudo` with Docker commands:
+  ```
+  sudo usermod -aG docker $USER
+  ```
+- Issue `sudo reboot` for all changes to take effect.
+- Complete the installation using the [instructions above](#installation).
+
+> NOTE: Some GPS receivers may have current demands that exceed the Pi's power supply capacity. Run `vcgencmd get_throttled` - a result of `0x0` indicates a healthy supply; any other value indicates the Pi is being throttled, likely due to low voltage. Use an external power supply or powered USB hub to provide adequate current to the receiver.
