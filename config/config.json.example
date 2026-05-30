@@ -1,6 +1,6 @@
 {
   "target_baud": 230400,
-  "tty_exclude": "^tty(\\d+|S\\d+)?$",
+  "tty_exclude": "^tty\\d+$",
   "tcp_port": 9999,
   "local_caster": {
     "port": 2101,
