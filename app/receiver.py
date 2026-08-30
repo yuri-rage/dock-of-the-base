@@ -90,6 +90,10 @@ _lock = threading.Lock()
 _stop = threading.Event()
 _thread: threading.Thread | None = None
 
+# Lock acquisition hierarchy:
+#   _config_lock -> _serial_lock
+# No other locks in this module may be nested.
+
 # TCP bridge state
 _tcp_clients: set[socket.socket] = set()
 _tcp_lock = threading.Lock()
@@ -296,8 +300,8 @@ def _serial_write(data: bytes) -> bool:
             try:
                 _serial.write(data)
                 return True
-            except OSError:
-                pass
+            except OSError as e:
+                log.debug("Serial write failed: %s", e)
     return False
 
 
@@ -645,7 +649,6 @@ def _reset_nav() -> None:
         state.svin_ecef_z = None
         state.num_sv = 0
     with _serial_lock:
-        global _serial
         _serial = None
 
 
@@ -739,8 +742,9 @@ def _connection_loop() -> None:
                 poll = cast(
                     UBXMessage, UBXMessage.config_poll(0, 0, ["CFG_TMODE_MODE"])
                 )
-                stream.write(poll.serialize())
-                stream.write(UBXMessage("MON", "MON-VER", POLL).serialize())
+                with _serial_lock:
+                    stream.write(poll.serialize())
+                    stream.write(UBXMessage("MON", "MON-VER", POLL).serialize())
             except (SerialException, OSError, UBXMessageError, UBXParseError) as e:
                 log.debug("Initial state poll failed: %s", e)
 
