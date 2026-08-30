@@ -399,14 +399,33 @@ def test_no_deadlock_cycles_in_lock_acquisition():
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
 
-    acquired_by: dict[str, set[str]] = {}
+    # Locks each function acquires directly, and the functions it calls.
+    direct: dict[str, set[str]] = {}
+    callees: dict[str, set[str]] = {}
     for fn in functions:
-        held = set()
+        acquires: set[str] = set()
+        calls: set[str] = set()
         for node in ast.walk(fn):
             if isinstance(node, ast.With):
-                held |= _lock_names_in(node, lock_names)
-        if held:
-            acquired_by[fn.name] = held
+                acquires |= _lock_names_in(node, lock_names)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                calls.add(node.func.id)
+        direct[fn.name] = acquires
+        callees[fn.name] = calls
+
+    # Propagate through the call graph, so a lock taken several calls deep still
+    # counts as one this function may acquire. Without this, an inversion hidden
+    # behind a helper goes undetected.
+    acquired_by: dict[str, set[str]] = {k: set(v) for k, v in direct.items()}
+    changed = True
+    while changed:
+        changed = False
+        for name, acquires in acquired_by.items():
+            for callee in callees.get(name, ()):
+                inherited = acquired_by.get(callee)
+                if inherited and not inherited <= acquires:
+                    acquires |= inherited
+                    changed = True
 
     edges: set[tuple[str, str]] = set()
     for fn in functions:
