@@ -1,0 +1,5 @@
+[tool.basedpyright]
+typeCheckingMode = "standard"
+reportMissingImports = "none"
+reportMissingModuleSource = "none"
+

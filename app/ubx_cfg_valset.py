@@ -23,7 +23,7 @@ from pyubx2 import (
     UBXReader,
     val2sphp,
 )
-from serial import Serial
+from serial import Serial, SerialException
 
 
 class PORT(StrEnum):
@@ -64,6 +64,7 @@ def _open_and_verify(
         stream.reset_input_buffer()
         stream.write(poll.serialize())
         reader = UBXReader(stream, protfilter=2, quitonerror=0)
+
         deadline = monotonic() + SERIAL_TIMEOUT
         while monotonic() < deadline:
             try:
@@ -77,7 +78,7 @@ def _open_and_verify(
                 pass
         log.debug("No MON-VER response at %d baud on %s", baud, port)
         stream.close()
-    except Exception as e:
+    except (SerialException, OSError, UBXMessageError, UBXParseError) as e:
         log.warning("Serial error on %s at %d baud: %s", port, baud, e)
         if stream and stream.is_open:
             stream.close()
@@ -112,7 +113,7 @@ def auto_baud_connect(
             stream.write(valset.serialize())
             stream.flush()
             stream.close()
-        except Exception as e:
+        except (SerialException, OSError, UBXMessageError, UBXParseError) as e:
             log.warning("Serial error on %s at %d baud: %s", port, baud, e)
             if stream and stream.is_open:
                 stream.close()

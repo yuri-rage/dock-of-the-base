@@ -4,9 +4,10 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Callable
+from typing import Annotated, Any
 
 import uvicorn
 from fastapi import FastAPI, Form, HTTPException, Query, Request
@@ -161,7 +162,7 @@ def _apply_config_msgs(
 
 
 def _build_last_configure(
-    existing: dict,
+    existing: dict[str, Any],
     tmode: int,
     acc_limit: float,
     svin_min_dur: int,
@@ -174,7 +175,7 @@ def _build_last_configure(
     ecef_x: float,
     ecef_y: float,
     ecef_z: float,
-) -> dict:
+) -> dict[str, Any]:
     last = {
         **existing,
         "tmode": tmode,
@@ -341,7 +342,7 @@ async def serial_ports_route(request: Request, show_all: bool = Query(False)):
 async def configure(
     request: Request,
     serial_port: str = Form(...),
-    port_type: Annotated[list[str], Form()] = [],
+    port_type: Annotated[list[str] | None, Form()] = None,
     target_baud: int = Form(...),
     tmode: int = Form(...),
     acc_limit: float = Form(0.2),
@@ -356,7 +357,8 @@ async def configure(
     use_msm7: str = Form(""),
 ):
     def run_config():
-        if not port_type:
+        ports = port_type or []
+        if not ports:
             return False, "No port type selected.", {}
 
         cfg = receiver.load_config() or {}
@@ -377,7 +379,7 @@ async def configure(
         if live:
             ok, logs, err = _apply_config_msgs(
                 receiver.send_config,
-                port_type,
+                ports,
                 raw_interval,
                 config_signals(multiband=is_multiband),
                 msm7,
@@ -400,8 +402,8 @@ async def configure(
                     receiver.state.svin_active = False
                     receiver.state.svin_valid = False
             reset_rtcm3_counts()
-            logs.insert(0, f"Reconfiguring live connection on {', '.join(port_type)}.")
-            receiver.save_config(serial_port, port_type[0], target_baud)
+            logs.insert(0, f"Reconfiguring live connection on {', '.join(ports)}.")
+            receiver.save_config(serial_port, ports[0], target_baud)
             save_last_configure(
                 _build_last_configure(
                     existing,
@@ -409,7 +411,7 @@ async def configure(
                     acc_limit,
                     svin_min_dur,
                     msm7,
-                    port_type,
+                    ports,
                     coord_type,
                     lat,
                     lon,
@@ -423,7 +425,7 @@ async def configure(
 
         # Not live — stop receiver, connect fresh, configure, restart
         receiver.stop(timeout=3.0)
-        connect_port = port_type[0]
+        connect_port = ports[0]
         stream, mon_ver = auto_baud_connect(serial_port, connect_port, target_baud)
         if not stream or mon_ver is None:
             receiver.start()
@@ -436,7 +438,7 @@ async def configure(
         }
         ok, logs, err = _apply_config_msgs(
             lambda msg: send_msg(stream, msg),
-            port_type,
+            ports,
             raw_interval,
             config_signals(mon_ver=mon_ver),
             msm7,
@@ -464,7 +466,7 @@ async def configure(
                 acc_limit,
                 svin_min_dur,
                 msm7,
-                port_type,
+                ports,
                 coord_type,
                 lat,
                 lon,
