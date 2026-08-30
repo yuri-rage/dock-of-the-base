@@ -108,6 +108,8 @@ _ntrip_in_lock = threading.Lock()
 _ntrip_in_thread: threading.Thread | None = None
 _ntrip_in_active: bool = False
 _ntrip_in_status: str = "disconnected"
+_ntrip_in_gen: int = 0
+_ntrip_in_stop_event = threading.Event()
 
 # External NTRIP caster (output) state
 _ntrip_out_sock: socket.socket | None = None
@@ -850,91 +852,149 @@ def _ntrip_in_connect(cfg: dict[str, Any]) -> socket.socket | None:
         return None
 
 
-def _ntrip_in_recv(sock: socket.socket, send_gga: bool) -> bool:
+def _ntrip_in_recv(
+    sock: socket.socket, send_gga: bool, gen: int, stop_ev: threading.Event
+) -> bool:
     """Receive RTCM corrections, forwarding to serial. Returns True if server dropped (reconnect), False to stop."""
-    global _ntrip_in_active
-    last_gga = 0.0
-    while not _stop.is_set():
-        with _ntrip_in_lock:
-            if not _ntrip_in_active:
-                return False
-        if not _ntrip_in_wanted():
-            with _ntrip_in_lock:
-                _ntrip_in_active = False
-            log.info("NTRIP-in: disconnecting — receiver entered Fixed mode")
+    global _ntrip_in_sock, _ntrip_in_active
+    with _ntrip_in_lock:
+        if gen != _ntrip_in_gen or not _ntrip_in_active:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
+                pass
             return False
-        if send_gga and time.monotonic() - last_gga >= NTRIP_IN_GGA_INTERVAL:
-            gga = _build_gga()
-            if gga:
-                try:
-                    sock.sendall(gga.encode())
-                    last_gga = time.monotonic()
-                    log.debug("NTRIP-in: sent GGA: %s", gga.strip())
-                except OSError:
-                    pass
-        try:
-            data = sock.recv(4096)
-            if not data:
-                log.warning("NTRIP-in: server closed connection")
+        _ntrip_in_sock = sock
+    last_gga = 0.0
+    try:
+        while (
+            not _stop.is_set()
+            and not stop_ev.is_set()
+            and _ntrip_in_active
+            and gen == _ntrip_in_gen
+        ):
+            if not _ntrip_in_wanted():
+                with _ntrip_in_lock:
+                    if gen == _ntrip_in_gen:
+                        _ntrip_in_active = False
+                log.info("NTRIP-in: disconnecting — receiver entered Fixed mode")
+                return False
+            if send_gga and time.monotonic() - last_gga >= NTRIP_IN_GGA_INTERVAL:
+                gga = _build_gga()
+                if gga:
+                    try:
+                        sock.sendall(gga.encode())
+                        last_gga = time.monotonic()
+                        log.debug("NTRIP-in: sent GGA: %s", gga.strip())
+                    except OSError:
+                        pass
+            try:
+                data = sock.recv(4096)
+                if not data:
+                    log.warning("NTRIP-in: server closed connection")
+                    return True
+                if _serial and _serial.is_open:
+                    _serial.write(data)
+            except TimeoutError:
+                continue
+            except OSError as e:
+                with _ntrip_in_lock:
+                    if _ntrip_in_active and gen == _ntrip_in_gen:
+                        log.warning("NTRIP-in: socket error: %s", e)
                 return True
-            if _serial and _serial.is_open:
-                _serial.write(data)
-        except TimeoutError:
-            continue
-        except OSError as e:
-            with _ntrip_in_lock:
-                active = _ntrip_in_active
-            if active:
-                log.warning("NTRIP-in: socket error: %s", e)
-            return True
-    return False
+        return False
+    finally:
+        with _ntrip_in_lock:
+            if _ntrip_in_sock is sock:
+                _ntrip_in_sock = None
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            sock.close()
+        except OSError:
+            pass
 
 
-def _ntrip_in_loop(cfg: dict[str, Any], initial_sock: socket.socket) -> None:
-    global _ntrip_in_sock, _ntrip_in_status
+def _ntrip_in_loop(
+    cfg: dict[str, Any],
+    gen: int,
+    stop_ev: threading.Event,
+    initial_sock: socket.socket | None = None,
+) -> None:
+    global _ntrip_in_active, _ntrip_in_status
     send_gga = bool(cfg.get("send_gga", False))
     sock: socket.socket | None = initial_sock
     try:
-        while not _stop.is_set() and _ntrip_in_active:
+        while (
+            not _stop.is_set()
+            and not stop_ev.is_set()
+            and _ntrip_in_active
+            and gen == _ntrip_in_gen
+        ):
             if sock is None:
                 sock = _ntrip_in_connect(cfg)
                 if sock is None:
-                    _stop.wait(NTRIP_IN_RECONNECT_INTERVAL)
+                    with _ntrip_in_lock:
+                        if gen == _ntrip_in_gen and _ntrip_in_active:
+                            _ntrip_in_status = "reconnecting"
+                    if stop_ev.wait(NTRIP_IN_RECONNECT_INTERVAL) or _stop.is_set():
+                        break
                     continue
             with _ntrip_in_lock:
-                _ntrip_in_sock = sock
+                if (
+                    gen != _ntrip_in_gen
+                    or not _ntrip_in_active
+                    or stop_ev.is_set()
+                    or _stop.is_set()
+                ):
+                    try:
+                        sock.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+                    try:
+                        sock.close()
+                    except OSError:
+                        pass
+                    break
                 _ntrip_in_status = "connected"
-            try:
-                reconnect = _ntrip_in_recv(sock, send_gga)
-            finally:
-                with _ntrip_in_lock:
-                    if _ntrip_in_sock is sock:
-                        _ntrip_in_sock = None
-                try:
-                    sock.shutdown(socket.SHUT_RDWR)
-                except OSError:
-                    pass
-                try:
-                    sock.close()
-                except OSError:
-                    pass
-                sock = None
+            reconnect = _ntrip_in_recv(sock, send_gga, gen, stop_ev)
+            sock = None
             if not reconnect:
                 break
-            if not _stop.is_set():
-                with _ntrip_in_lock:
-                    _ntrip_in_status = "reconnecting"
+            with _ntrip_in_lock:
+                if (
+                    gen != _ntrip_in_gen
+                    or not _ntrip_in_active
+                    or _stop.is_set()
+                    or stop_ev.is_set()
+                ):
+                    break
+                _ntrip_in_status = "reconnecting"
                 log.info("NTRIP-in: reconnecting in %.0fs", NTRIP_IN_RECONNECT_INTERVAL)
-                _stop.wait(NTRIP_IN_RECONNECT_INTERVAL)
+            if stop_ev.wait(NTRIP_IN_RECONNECT_INTERVAL) or _stop.is_set():
+                break
     finally:
         with _ntrip_in_lock:
-            _ntrip_in_status = "disconnected"
-        log.info("NTRIP-in: disconnected")
+            if gen == _ntrip_in_gen:
+                _ntrip_in_active = False
+                _ntrip_in_status = "disconnected"
+                log.info("NTRIP-in: disconnected")
 
 
 def ntrip_in_connect() -> str | None:
     """Connect to NTRIP source synchronously. Returns an error string on failure, None on success."""
-    global _ntrip_in_active, _ntrip_in_thread, _ntrip_in_status
+    global \
+        _ntrip_in_active, \
+        _ntrip_in_thread, \
+        _ntrip_in_status, \
+        _ntrip_in_gen, \
+        _ntrip_in_stop_event
     with _lock:
         tmode = state.tmode
     if tmode == 2:
@@ -942,14 +1002,24 @@ def ntrip_in_connect() -> str | None:
     ntrip_in = (load_config() or {}).get("ntrip_in")
     if not ntrip_in:
         return "NTRIP input is not configured."
+    ntrip_in_disconnect()
+    if _ntrip_in_thread and _ntrip_in_thread.is_alive():
+        _ntrip_in_thread.join(timeout=1.0)
     sock = _ntrip_in_connect(ntrip_in)
     if not sock:
         return "Failed to connect to NTRIP source."
     with _ntrip_in_lock:
+        _ntrip_in_gen += 1
+        gen = _ntrip_in_gen
+        _ntrip_in_stop_event = threading.Event()
+        stop_ev = _ntrip_in_stop_event
         _ntrip_in_active = True
         _ntrip_in_status = "connected"
     _ntrip_in_thread = threading.Thread(
-        target=_ntrip_in_loop, args=(ntrip_in, sock), daemon=True, name="ntrip-in"
+        target=_ntrip_in_loop,
+        args=(ntrip_in, gen, stop_ev, sock),
+        daemon=True,
+        name="ntrip-in",
     )
     _ntrip_in_thread.start()
     return None
@@ -960,6 +1030,7 @@ def ntrip_in_disconnect() -> None:
     with _ntrip_in_lock:
         _ntrip_in_active = False
         _ntrip_in_status = "disconnected"
+        _ntrip_in_stop_event.set()
         sock = _ntrip_in_sock
         _ntrip_in_sock = None
     if sock:
