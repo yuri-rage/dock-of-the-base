@@ -854,9 +854,13 @@ def _ntrip_in_recv(sock: socket.socket, send_gga: bool) -> bool:
     """Receive RTCM corrections, forwarding to serial. Returns True if server dropped (reconnect), False to stop."""
     global _ntrip_in_active
     last_gga = 0.0
-    while not _stop.is_set() and _ntrip_in_active:
+    while not _stop.is_set():
+        with _ntrip_in_lock:
+            if not _ntrip_in_active:
+                return False
         if not _ntrip_in_wanted():
-            _ntrip_in_active = False
+            with _ntrip_in_lock:
+                _ntrip_in_active = False
             log.info("NTRIP-in: disconnecting — receiver entered Fixed mode")
             return False
         if send_gga and time.monotonic() - last_gga >= NTRIP_IN_GGA_INTERVAL:
@@ -878,7 +882,9 @@ def _ntrip_in_recv(sock: socket.socket, send_gga: bool) -> bool:
         except TimeoutError:
             continue
         except OSError as e:
-            if _ntrip_in_active:
+            with _ntrip_in_lock:
+                active = _ntrip_in_active
+            if active:
                 log.warning("NTRIP-in: socket error: %s", e)
             return True
     return False
