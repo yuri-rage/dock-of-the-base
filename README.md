@@ -140,3 +140,28 @@ Dock of the Base can be installed on a Raspberry Pi and has been tested on a Pi 
 - Complete the installation using the [instructions above](#installation).
 
 > NOTE: Some GPS receivers may have current demands that exceed the Pi's power supply capacity. Run `vcgencmd get_throttled` - a result of `0x0` indicates a healthy supply; any other value indicates the Pi is being throttled, likely due to low voltage. Use an external power supply or powered USB hub to provide adequate current to the receiver.
+
+## DEVELOPMENT & RELEASES
+
+### Running Tests
+
+Run the test suite locally:
+
+```bash
+pip install -r requirements.txt pytest
+pytest tests/ -v
+```
+
+### Publishing Docker Images
+
+Multi-architecture Docker images (`linux/amd64` and `linux/arm64`) are automatically built and published to [Docker Hub](https://hub.docker.com/r/yurirage/dock-of-the-base) via GitHub Actions when a version tag is pushed:
+
+1. Update `__version__` in `app/__init__.py` if needed.
+2. Tag the commit with `v*` and push the tag:
+
+```bash
+git tag v0.2.1
+git push origin v0.2.1
+```
+
+GitHub Actions will run the test suite, build multi-arch images, and push the version tags (`v0.2.1`, `0.2`) along with `latest` to Docker Hub. Deployments can also be triggered manually via **Actions $\rightarrow$ Publish Docker Image $\rightarrow$ Run workflow** in GitHub.
