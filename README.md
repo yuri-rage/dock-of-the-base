@@ -34,6 +34,22 @@ To stop the service:
 docker compose down
 ```
 
+## UPDATING
+
+To update to the latest version:
+
+```bash
+cd dock-of-the-base
+docker compose pull
+docker compose up -d
+```
+
+Optionally, remove outdated images to reclaim disk space:
+
+```bash
+docker image prune -f
+```
+
 ![Screenshot](screenshot.png)
 
 ## QUICK START
