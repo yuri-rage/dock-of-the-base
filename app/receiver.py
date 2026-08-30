@@ -90,11 +90,16 @@ _lock = threading.Lock()
 _stop = threading.Event()
 _thread: threading.Thread | None = None
 
+# Lock acquisition hierarchy:
+#   _config_lock -> _serial_lock
+# No other locks in this module may be nested.
+
 # TCP bridge state
 _tcp_clients: set[socket.socket] = set()
 _tcp_lock = threading.Lock()
 _tcp_server: socketserver.TCPServer | None = None
 _serial: Serial | None = None  # current open serial stream
+_serial_lock = threading.Lock()
 
 # NTRIP caster state
 _ntrip_clients: set[socket.socket] = set()
@@ -288,6 +293,18 @@ class _TeeStream:
         return self._s.is_open
 
 
+def _serial_write(data: bytes) -> bool:
+    """Thread-safe write to the open serial stream."""
+    with _serial_lock:
+        if _serial and _serial.is_open:
+            try:
+                _serial.write(data)
+                return True
+            except OSError as e:
+                log.debug("Serial write failed: %s", e)
+    return False
+
+
 class _ClientHandler(socketserver.BaseRequestHandler):
     def setup(self) -> None:
         self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -300,8 +317,7 @@ class _ClientHandler(socketserver.BaseRequestHandler):
                 data = self.request.recv(4096)
                 if not data:
                     break
-                if _serial and _serial.is_open:
-                    _serial.write(data)
+                _serial_write(data)
             except OSError:
                 break
 
@@ -632,7 +648,8 @@ def _reset_nav() -> None:
         state.svin_ecef_y = None
         state.svin_ecef_z = None
         state.num_sv = 0
-    _serial = None
+    with _serial_lock:
+        _serial = None
 
 
 def _apply_auto_fixed() -> None:
@@ -713,7 +730,8 @@ def _connection_loop() -> None:
         )
 
         if stream:
-            _serial = stream
+            with _serial_lock:
+                _serial = stream
             with _lock:
                 state.connected = True
                 state.port = cfg["serial_port"]
@@ -724,8 +742,9 @@ def _connection_loop() -> None:
                 poll = cast(
                     UBXMessage, UBXMessage.config_poll(0, 0, ["CFG_TMODE_MODE"])
                 )
-                stream.write(poll.serialize())
-                stream.write(UBXMessage("MON", "MON-VER", POLL).serialize())
+                with _serial_lock:
+                    stream.write(poll.serialize())
+                    stream.write(UBXMessage("MON", "MON-VER", POLL).serialize())
             except (SerialException, OSError, UBXMessageError, UBXParseError) as e:
                 log.debug("Initial state poll failed: %s", e)
 
@@ -897,8 +916,7 @@ def _ntrip_in_recv(
                 if not data:
                     log.warning("NTRIP-in: server closed connection")
                     return True
-                if _serial and _serial.is_open:
-                    _serial.write(data)
+                _serial_write(data)
             except TimeoutError:
                 continue
             except OSError as e:
@@ -1495,14 +1513,15 @@ def send_config(ubx: UBXMessage, timeout: float = _CONFIG_TIMEOUT) -> bool:
     """Send a CFG-VALSET to the active serial connection and wait for ACK."""
     global _ack_ok
     with _config_lock:
-        if _serial is None or not _serial.is_open:
-            return False
-        _ack_ok = False
-        _ack_event.clear()
-        try:
-            _serial.write(ubx.serialize())
-        except OSError:
-            return False
+        with _serial_lock:
+            if _serial is None or not _serial.is_open:
+                return False
+            _ack_ok = False
+            _ack_event.clear()
+            try:
+                _serial.write(ubx.serialize())
+            except OSError:
+                return False
         if _ack_event.wait(timeout):
             return _ack_ok
         log.warning("No ACK for %s within %.1fs (live)", ubx.identity, timeout)
