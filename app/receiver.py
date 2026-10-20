@@ -14,7 +14,7 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any, cast
 from urllib.parse import urlparse
@@ -789,7 +789,7 @@ def _build_gga() -> str | None:
     else:
         return None  # no usable fix
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     time_str = now.strftime("%H%M%S.00")
 
     lat_abs = abs(lat)
@@ -1066,15 +1066,15 @@ def ntrip_in_disconnect() -> None:
 
 
 def _ntrip_out_connect(cfg: dict[str, Any]) -> socket.socket | None:
-    url = cfg.get("url", "")
+    url = cfg.get("url", "").strip()
     port = int(cfg.get("port", 2101))
-    mount = cfg.get("mount_point", "")
-    password = cfg.get("password", "")
+    mount = cfg.get("mount_point", "").strip().lstrip("/")
+    password = cfg.get("password", "").strip()
 
     parsed = urlparse(url if "://" in url else "http://" + url)
     host = parsed.hostname or url
     request = (
-        f"SOURCE {password} /{mount} HTTP/1.0\r\n"
+        f"SOURCE {password} /{mount}\r\n"
         f"User-Agent: NTRIP dock-of-the-base/1.0\r\n"
         f"Source-Agent: NTRIP dock-of-the-base/1.0\r\n"
         f"\r\n"
@@ -1306,7 +1306,7 @@ def _open_log_file() -> None:
     """Open a new timestamped log file. Caller must hold _log_lock."""
     global _log_file
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = LOG_DIR / f"rawx_{ts}.ubx"
     _log_file = open(path, "wb")  # noqa: SIM115
     log.info("RAWX log opened: %s", path.name)
@@ -1318,7 +1318,7 @@ def _cleanup_old_logs() -> None:
     retention_days = int(cfg.get("logging", {}).get("retention_days", 2))
     if retention_days <= 0:
         return
-    cutoff = datetime.now().timestamp() - retention_days * 86400  # noqa: DTZ005
+    cutoff = datetime.now().timestamp() - retention_days * 86400
     for pattern in ("rawx_*.ubx", "rawx_*.obs", "rawx_*.nav"):
         for f in LOG_DIR.glob(pattern):
             try:
