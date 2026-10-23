@@ -362,7 +362,7 @@ def config_disabled() -> UBXMessage:
 def config_fixed(acc_limit: int, lat: float, lon: float, height: float) -> UBXMessage:
     """
     Configure Fixed mode with LLA coordinates. acc_limit in 0.1 mm units.
-    height in mm (CFG_TMODE_HEIGHT).
+    height in metres (CFG_TMODE_HEIGHT in cm, CFG_TMODE_HEIGHT_HP in 0.1 mm).
     """
 
     tmode = TMODE.Fixed
@@ -371,14 +371,14 @@ def config_fixed(acc_limit: int, lat: float, lon: float, height: float) -> UBXMe
     transaction = 0
     lats, lath = val2sphp(lat)
     lons, lonh = val2sphp(lon)
+    height_cm, height_hp = val2sphp(height, scale=1e-2)
 
-    height = int(height)
     cfg_data: list[tuple[int | str, object]] = [
         ("CFG_TMODE_MODE", tmode),
         ("CFG_TMODE_POS_TYPE", pos_type),
         ("CFG_TMODE_FIXED_POS_ACC", acc_limit),
-        ("CFG_TMODE_HEIGHT_HP", 0),
-        ("CFG_TMODE_HEIGHT", height),
+        ("CFG_TMODE_HEIGHT_HP", height_hp),
+        ("CFG_TMODE_HEIGHT", height_cm),
         ("CFG_TMODE_LAT", lats),
         ("CFG_TMODE_LAT_HP", lath),
         ("CFG_TMODE_LON", lons),

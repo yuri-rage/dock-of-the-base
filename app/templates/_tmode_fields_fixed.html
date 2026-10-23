@@ -26,21 +26,24 @@
         <input type="number"
                name="lat"
                value="{{ last_cfg.get('lat', 0.0) }}"
-               step="0.000000001" />
+               step="any"
+               {% if ft == "ecef" %}disabled{% endif %} />
     </div>
     <div class="field">
         <label>Longitude</label>
         <input type="number"
                name="lon"
                value="{{ last_cfg.get('lon', 0.0) }}"
-               step="0.000000001" />
+               step="any"
+               {% if ft == "ecef" %}disabled{% endif %} />
     </div>
     <div class="field">
         <label>Height (m, HAE)</label>
         <input type="number"
                name="height"
                value="{{ last_cfg.get('height', 0.0) }}"
-               step="any" />
+               step="any"
+               {% if ft == "ecef" %}disabled{% endif %} />
     </div>
 </div>
 <div id="fixed-ecef" {% if ft != "ecef" %}style="display:none"{% endif %}>
@@ -49,21 +52,24 @@
         <input type="number"
                name="ecef_x"
                value="{{ last_cfg.get('ecef_x', 0.0) }}"
-               step="0.01" />
+               step="any"
+               {% if ft != "ecef" %}disabled{% endif %} />
     </div>
     <div class="field">
         <label>ECEF Y (m)</label>
         <input type="number"
                name="ecef_y"
                value="{{ last_cfg.get('ecef_y', 0.0) }}"
-               step="0.01" />
+               step="any"
+               {% if ft != "ecef" %}disabled{% endif %} />
     </div>
     <div class="field">
         <label>ECEF Z (m)</label>
         <input type="number"
                name="ecef_z"
                value="{{ last_cfg.get('ecef_z', 0.0) }}"
-               step="0.01" />
+               step="any"
+               {% if ft != "ecef" %}disabled{% endif %} />
     </div>
 </div>
 <div class="field">
@@ -81,13 +87,21 @@
         if (type === "lla") {
             lla.style.display = "";
             ecef.style.display = "none";
+            lla.querySelectorAll("input").forEach(function (el) {
+                el.disabled = false;
+            });
             ecef.querySelectorAll("input").forEach(function (el) {
+                el.disabled = true;
                 el.value = 0;
             });
         } else {
             ecef.style.display = "";
             lla.style.display = "none";
+            ecef.querySelectorAll("input").forEach(function (el) {
+                el.disabled = false;
+            });
             lla.querySelectorAll("input").forEach(function (el) {
+                el.disabled = true;
                 el.value = 0;
             });
         }

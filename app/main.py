@@ -233,7 +233,7 @@ def _run_tmode_config(
             )
             fixed_desc = f"ECEF ({ecef_x}, {ecef_y}, {ecef_z}) m"
         else:
-            fixed_msg = config_fixed(int(acc_limit * 10000), lat, lon, height * 1000)
+            fixed_msg = config_fixed(int(acc_limit * 10000), lat, lon, height)
             fixed_desc = f"{lat}, {lon}, height {height} m HAE"
         if not send_fn(fixed_msg):
             return False, "Failed to configure Fixed mode."
