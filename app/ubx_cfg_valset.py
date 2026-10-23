@@ -359,6 +359,17 @@ def config_disabled() -> UBXMessage:
     return ubx
 
 
+def split_m_cm_hp(val_m: float) -> tuple[int, int]:
+    """
+    Split metres into integer cm and 0.1 mm high-precision offset.
+    Guarantees the HP component stays within the [-99, +99] range.
+    """
+    total = round(val_m * 10_000)  # 0.1 mm units
+    sign = -1 if total < 0 else 1
+    cm, hp = divmod(abs(total), 100)
+    return sign * cm, sign * hp
+
+
 def config_fixed(acc_limit: int, lat: float, lon: float, height: float) -> UBXMessage:
     """
     Configure Fixed mode with LLA coordinates. acc_limit in 0.1 mm units.
@@ -371,7 +382,7 @@ def config_fixed(acc_limit: int, lat: float, lon: float, height: float) -> UBXMe
     transaction = 0
     lats, lath = val2sphp(lat)
     lons, lonh = val2sphp(lon)
-    height_cm, height_hp = val2sphp(height, scale=1e-2)
+    height_cm, height_hp = split_m_cm_hp(height)
 
     cfg_data: list[tuple[int | str, object]] = [
         ("CFG_TMODE_MODE", tmode),
@@ -397,20 +408,23 @@ def config_fixed_ecef(
 ) -> UBXMessage:
     """
     Configure Fixed mode with ECEF coordinates. acc_limit in 0.1 mm units.
-    ecef_x/y/z in metres; stored as integer cm (CFG_TMODE_ECEF_X/Y/Z scale = 0.01 m).
+    ecef_x/y/z in metres (CFG_TMODE_ECEF_* in cm, CFG_TMODE_ECEF_*_HP in 0.1 mm).
     """
 
     layers = LAYER.RAM | LAYER.BBR | LAYER.Flash
+    x_cm, x_hp = split_m_cm_hp(ecef_x)
+    y_cm, y_hp = split_m_cm_hp(ecef_y)
+    z_cm, z_hp = split_m_cm_hp(ecef_z)
     cfg_data: list[tuple[int | str, object]] = [
         ("CFG_TMODE_MODE", TMODE.Fixed),
         ("CFG_TMODE_POS_TYPE", 0),  # 0 = ECEF
         ("CFG_TMODE_FIXED_POS_ACC", acc_limit),
-        ("CFG_TMODE_ECEF_X", int(ecef_x * 100)),
-        ("CFG_TMODE_ECEF_X_HP", 0),
-        ("CFG_TMODE_ECEF_Y", int(ecef_y * 100)),
-        ("CFG_TMODE_ECEF_Y_HP", 0),
-        ("CFG_TMODE_ECEF_Z", int(ecef_z * 100)),
-        ("CFG_TMODE_ECEF_Z_HP", 0),
+        ("CFG_TMODE_ECEF_X", x_cm),
+        ("CFG_TMODE_ECEF_X_HP", x_hp),
+        ("CFG_TMODE_ECEF_Y", y_cm),
+        ("CFG_TMODE_ECEF_Y_HP", y_hp),
+        ("CFG_TMODE_ECEF_Z", z_cm),
+        ("CFG_TMODE_ECEF_Z_HP", z_hp),
     ]
 
     ubx = cast(UBXMessage, UBXMessage.config_set(layers, 0, cfg_data))
