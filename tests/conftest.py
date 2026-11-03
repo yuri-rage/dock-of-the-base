@@ -48,9 +48,13 @@ def receiver(tmp_path, monkeypatch):
     # Teardown: never leak a worker thread into the next test.
     mod.ntrip_in_disconnect()
     mod.ntrip_out_disconnect()
+    mod.mavlink.stop()
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        if not any(t.name in ("ntrip-in", "ntrip-out") for t in threading.enumerate()):
+        if not any(
+            t.name in ("ntrip-in", "ntrip-out", "mavlink-rx", "mavlink-hb")
+            for t in threading.enumerate()
+        ):
             break
         time.sleep(0.02)
     mod._stop.clear()

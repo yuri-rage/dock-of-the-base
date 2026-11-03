@@ -17,8 +17,11 @@ in-process NTRIP caster on a loopback port.
 | File | Purpose |
 | --- | --- |
 | `fake_caster.py` | In-process caster speaking both `SOURCE` (ntrip-out) and `GET` (ntrip-in). Counts concurrent sessions per mount. |
+| `fake_rover.py` | In-process MAVLink UDP rover simulating ArduPilot heartbeats, `AUTOPILOT_VERSION` replies, `GPS_RAW_INT`, and `GPS_RTCM_DATA` fragment reassembly. |
 | `conftest.py` | Fixtures. Points `receiver` at a throwaway config, shortens reconnect intervals, and tears down worker threads between tests. |
-| `test_ntrip_lifecycle.py` | The tests. |
+| `test_ntrip_lifecycle.py` | NTRIP session management tests. |
+| `test_mavlink_lifecycle.py` | MAVLink RTCM fragmentation, vehicle gating, multi-rover tracking, and timeout/pruning lifecycle tests. |
+| `test_ubx_cfg.py` | UBX configuration message generation tests. |
 
 ## The invariant
 
