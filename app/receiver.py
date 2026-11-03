@@ -23,6 +23,7 @@ from pyrtcm import RTCMParseError
 from pyubx2 import POLL, UBXMessage, UBXMessageError, UBXParseError, UBXReader
 from serial import Serial, SerialException
 
+from app import mavlink
 from app.ubx_cfg_valset import auto_baud_connect, config_fixed_ecef
 
 log = logging.getLogger(__name__)
@@ -709,6 +710,7 @@ def _reader_loop(stream: _TeeStream) -> None:
                         _count_rtcm3(raw)
                         _forward_ntrip(raw)
                         _forward_ntrip_out(raw)
+                        mavlink.forward_mavlink(raw)
             else:
                 _stop.wait(0.01)
         except (UBXParseError, UBXMessageError, RTCMParseError):
@@ -1578,6 +1580,10 @@ def start() -> None:
     ec = cfg.get("external_caster", {})
     if ec.get("url", "").strip() and not _ntrip_out_active:
         ntrip_out_connect()
+    try:
+        mavlink.start(cfg.get("mavlink"))
+    except (TypeError, ValueError, OSError) as exc:
+        log.error("Failed to start MAVLink service from config: %s", exc)
     start_logging()
     _thread = threading.Thread(target=_connection_loop, daemon=True, name="receiver")
     _thread.start()
@@ -1587,6 +1593,7 @@ def stop(timeout: float = 5.0) -> None:
     _stop.set()
     ntrip_in_disconnect()
     ntrip_out_disconnect()
+    mavlink.stop()
     if _thread and _thread.is_alive():
         _thread.join(timeout=timeout)
     if _ntrip_in_thread and _ntrip_in_thread.is_alive():

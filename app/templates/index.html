@@ -148,6 +148,9 @@
                                     onclick="switchTab('tab-ntrip-in', this)">NTRIP Input</button>
                             <button type="button"
                                     class="tab-btn"
+                                    onclick="switchTab('tab-mavlink', this)">MAVLink</button>
+                            <button type="button"
+                                    class="tab-btn"
                                     onclick="switchTab('tab-logging', this)">Logging</button>
                         </div>
                         <form hx-post="/network" hx-target="#result" hx-swap="outerHTML">
@@ -292,6 +295,63 @@
                                             <span class="spinner"></span> Connecting&hellip;
                                         </span>
                                     {% endif %}
+                                </div>
+                            </div>
+                        </form>
+                        {% set mv = cfg.get('mavlink', {}) %}
+                        <form hx-post="/mavlink" hx-target="#result" hx-swap="outerHTML">
+                            <div id="tab-mavlink" class="tab-panel">
+                                <p class="caption">
+                                    Listen for MAVLink vehicle heartbeats on UDP and unicast RTCM3 corrections (<code>GPS_RTCM_DATA</code>) to active rovers. Ensure any GCS NTRIP injection on the same link is disabled to prevent fragment sequence collisions.
+                                </p>
+                                <div class="field">
+                                    <label class="toggle">
+                                        <input type="checkbox"
+                                               name="enabled"
+                                               value="true"
+                                               {% if mv.get('enabled') %}checked{% endif %}>
+                                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                                        Enable MAVLink RTCM injection
+                                    </label>
+                                </div>
+                                <div class="field">
+                                    <label>UDP port</label>
+                                    <input type="number"
+                                           name="port"
+                                           min="1"
+                                           max="65535"
+                                           value="{{ mv.get('port', 14550) }}">
+                                </div>
+                                <div class="field">
+                                    <label>
+                                        Broadcast / remote host <span class="muted">(for base heartbeat)</span>
+                                    </label>
+                                    <input type="text"
+                                           name="broadcast_host"
+                                           value="{{ mv.get('broadcast_host', '255.255.255.255') }}">
+                                </div>
+                                <div class="field">
+                                    <label>
+                                        Base system ID <span class="muted">(1&ndash;254; avoid 255 GCS default)</span>
+                                    </label>
+                                    <input type="number"
+                                           name="sysid"
+                                           min="1"
+                                           max="254"
+                                           value="{{ mv.get('sysid', 250) }}">
+                                </div>
+                                <div class="field">
+                                    <label>
+                                        Vehicle silence timeout <span class="muted">(seconds)</span>
+                                    </label>
+                                    <input type="number"
+                                           name="timeout_s"
+                                           min="5"
+                                           max="300"
+                                           value="{{ mv.get('timeout_s', 20) }}">
+                                </div>
+                                <div class="submit-row">
+                                    <button type="submit" class="primary" hx-disabled-elt="this">Apply</button>
                                 </div>
                             </div>
                         </form>

@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pyubx2 import UBXMessage
 
-from app import __version__, receiver
+from app import __version__, mavlink, receiver
 from app.filters import deg_to_dms, google_maps_link, m_to_ft
 from app.receiver import (
     CARRIER_SOLUTION_TYPES,
@@ -319,6 +319,7 @@ async def status(request: Request):
             "ntrip_out_status": ntrip_out_status_str(),
             "ntrip_out_url": ntrip_out_url,
             "ntrip_in_status": ntrip_in_status_str(),
+            "mavlink": mavlink.status_snapshot(),
             "rtcm3_counts": rtcm3_counts(),
             "rtcm3_names": RTCM3_NAMES,
         },
@@ -680,6 +681,63 @@ async def network(
             "ntrip_port": ntrip_port_val,
             "ntrip_mount": ntrip_mount_val,
         },
+    )
+
+
+@app.post("/mavlink", response_class=HTMLResponse)
+async def configure_mavlink_route(
+    request: Request,
+    enabled: str = Form(""),
+    port: int = Form(14550),
+    broadcast_host: str = Form("255.255.255.255"),
+    sysid: int = Form(250),
+    timeout_s: float = Form(20.0),
+):
+    is_enabled = enabled == "true"
+    timeout_s = max(mavlink.MIN_TIMEOUT_S, min(mavlink.MAX_TIMEOUT_S, timeout_s))
+    mv_cfg = {
+        "enabled": is_enabled,
+        "port": port,
+        "broadcast_host": broadcast_host.strip(),
+        "sysid": sysid,
+        "timeout_s": timeout_s,
+    }
+
+    def run():
+        err = mavlink.start(mv_cfg)
+        if err is not None:
+            return err
+        with receiver._config_lock:
+            cfg = receiver.load_config() or {}
+            cfg["mavlink"] = mv_cfg
+            receiver.CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
+        return None
+
+    error = await asyncio.to_thread(run)
+    ok = error is None
+    if not is_enabled:
+        msg = "MAVLink RTCM injection disabled — configuration saved."
+    elif ok:
+        msg = (
+            f"Listening on UDP :{port} (sysid {sysid}, "
+            f"broadcast {broadcast_host.strip() or 'none'}, "
+            f"timeout {timeout_s:.0f}s)"
+        )
+    else:
+        snap = mavlink.status_snapshot()
+        running = snap["enabled"]
+        running_port = snap["port"]
+        prev_note = (
+            f" Previous service is still active on UDP :{running_port}."
+            if running and running_port
+            else ""
+        )
+        msg = f"{error or 'Failed to start MAVLink service.'}{prev_note}"
+
+    return templates.TemplateResponse(
+        request,
+        "_mavlink_result.html",
+        {"ok": ok, "message": msg},
     )
 
 

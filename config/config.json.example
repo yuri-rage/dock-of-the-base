@@ -25,5 +25,12 @@
     "raw_interval_s": 30,
     "file_duration_h": 4.0,
     "retention_days": 2
+  },
+  "mavlink": {
+    "enabled": false,
+    "port": 14550,
+    "broadcast_host": "255.255.255.255",
+    "sysid": 250,
+    "timeout_s": 20
   }
 }

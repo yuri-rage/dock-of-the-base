@@ -1,0 +1,8 @@
+<div id="result"
+     class="card {% if ok %}result-ok{% else %}result-error{% endif %}">
+    <div style="display: flex; align-items: center; justify-content: space-between">
+        <strong>{% if ok %}MAVLink config applied{% else %}MAVLink error{% endif %}</strong>
+        <button type="button" class="btn-sm" onclick="dismissResult()" title="Dismiss">&#x2715;</button>
+    </div>
+    <pre>{{ message }}</pre>
+</div>

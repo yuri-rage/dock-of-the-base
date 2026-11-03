@@ -178,6 +178,57 @@
             </span>
         </div>
     {% endif %}
+    {% if mavlink %}
+        <div class="status-header" style="margin-top: 0.5rem">
+            <span class="status-dot {% if mavlink.enabled %}dot-ok{% else %}dot-err{% endif %}"></span>
+            <span class="muted">
+                {% if mavlink.enabled %}
+                    MAVLink :{{ mavlink.port }} &mdash; {{ mavlink.active_rovers }}
+                    vehicle{{ "s" if mavlink.active_rovers != 1 }}
+                    {% if mavlink.rtcm_dropped_oversize %}
+                        <span style="color: var(--destructive); margin-left: 0.35rem">
+                            ({% for mtype, count in mavlink.rtcm_dropped_by_type.items() %}{{ mtype }}{% if mtype in rtcm3_names %} {{ rtcm3_names[mtype] }}{% endif %} &times;{{ count }}{% if not loop.last %}, {% endif %}{% endfor %} dropped &gt;720 B)
+                        </span>
+                    {% endif %}
+                {% else %}
+                    MAVLink &mdash; disabled
+                {% endif %}
+            </span>
+        </div>
+        {% if mavlink.enabled and mavlink.rovers %}
+            <table class="receiver-info" style="margin-top: 0.35rem; margin-left: 1rem; width: calc(100% - 1rem)">
+                {% for r in mavlink.rovers %}
+                    <tr title="{{ r.endpoint }}">
+                        <td>
+                            <span class="status-dot {% if r.active %}dot-ok{% else %}dot-err{% endif %}"
+                                  style="display: inline-block;
+                                         vertical-align: middle;
+                                         margin-right: 0.35rem"></span>
+                            SysID {{ r.sysid }}
+                            <br />
+                            <span class="muted" style="font-size: 0.72rem">{{ r.endpoint }}</span>
+                        </td>
+                        <td>
+                            <strong>{{ r.label }}</strong>
+                            <br />
+                            {{ r.fix_name }}
+                            {% if r.h_acc_m is not none %}
+                                <span class="muted">
+                                    (&plusmn;{% if r.h_acc_m >= 1 %}{{ "%.02f"|format(r.h_acc_m) }} m{% else %}{{ "%.01f"|format(r.h_acc_m * 100) }} cm{% endif %})
+                                </span>
+                            {% endif %}
+                            {% if r.satellites is not none %}
+                                <span class="muted">({{ r.satellites }} SV)</span>
+                            {% endif %}
+                            {% if not r.active %}
+                                <span class="muted">&mdash; Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% endif %}
+    {% endif %}
     {% if rtcm3_counts %}
         <hr />
         <div class="rtcm3-caption">
