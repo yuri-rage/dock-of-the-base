@@ -105,6 +105,13 @@ The web app provides multiple options for configuring local and external network
 
 > NOTE: Sending GGA messages is only required for VRS or NRS mount points (typically included in the mount point name, e.g., `SOME_NTRIP_SOURCE_VRS`).
 
+**MAVLink:**
+
+- Listens on a UDP port (default `14550`) for vehicle `HEARTBEAT` messages, emits a 1 Hz base station heartbeat (`sysid: 250`, `MAV_TYPE_ONBOARD_CONTROLLER`), queries `AUTOPILOT_VERSION`, monitors rover RTK fix status via `GPS_RAW_INT`, and unicasts fragmented `GPS_RTCM_DATA` (msg 233) packets to active vehicles.
+- Requires a networked MAVLink link or bridge that forwards UDP traffic to the vehicle (e.g., `mavlink-router`, `MAVProxy`, a companion computer, or a WiFi/Ethernet telemetry bridge). Ground control stations such as Mission Planner and QGroundControl do not relay incoming `GPS_RTCM_DATA` from other systems to the vehicle.
+
+> IMPORTANT: Only one RTCM injector may be active on a MAVLink link at a time. ArduPilot reassembles `GPS_RTCM_DATA` fragments by 5-bit sequence ID rather than sender system ID. If a GCS also has NTRIP/RTCM injection enabled on the same link, the two streams will interleave and corrupt each other's fragments.
+
 **Logging:**
 
 - Configure logging options to capture raw GNSS observation data for PPK post-processing or other analysis. Recommend using 30 second observation intervals to keep log file sizes from growing very large.
