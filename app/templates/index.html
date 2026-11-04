@@ -298,7 +298,7 @@
                                 </div>
                             </div>
                         </form>
-                        {% set mv = cfg.get('mavlink', {}) %}
+                        {% set mv = cfg.get('mavlink') or {} %}
                         <form hx-post="/mavlink" hx-target="#result" hx-swap="outerHTML">
                             <div id="tab-mavlink" class="tab-panel">
                                 <p class="caption">

@@ -167,8 +167,8 @@ Multi-architecture Docker images (`linux/amd64` and `linux/arm64`) are automatic
 2. Tag the commit with `v*` and push the tag:
 
 ```bash
-git tag v0.2.4
-git push origin v0.2.4
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-GitHub Actions will run the test suite, build multi-arch images, and push the version tags (`v0.2.4`, `0.2`) along with `latest` to Docker Hub. Deployments can also be triggered manually via **Actions $\rightarrow$ Publish Docker Image $\rightarrow$ Run workflow** in GitHub.
+GitHub Actions will run the test suite, build multi-arch images, and push the version tags (`v0.3.0`, `0.3`) along with `latest` to Docker Hub. Deployments can also be triggered manually via **Actions $\rightarrow$ Publish Docker Image $\rightarrow$ Run workflow** in GitHub.
