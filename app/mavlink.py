@@ -21,7 +21,7 @@ from pymavlink.dialects.v20 import common as mavlink2
 log = logging.getLogger(__name__)
 
 DEFAULT_PORT = 14550
-DEFAULT_BROADCAST_HOST = "255.255.255.255"
+DEFAULT_BROADCAST_HOST = ""
 DEFAULT_SYSID = 250
 DEFAULT_COMPID = mavlink2.MAV_COMP_ID_ONBOARD_COMPUTER  # 191
 DEFAULT_TIMEOUT_S = 20.0

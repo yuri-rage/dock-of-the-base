@@ -29,7 +29,7 @@
   "mavlink": {
     "enabled": false,
     "port": 14550,
-    "broadcast_host": "255.255.255.255",
+    "broadcast_host": "",
     "sysid": 250,
     "timeout_s": 20
   }

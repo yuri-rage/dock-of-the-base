@@ -324,11 +324,12 @@
                                 </div>
                                 <div class="field">
                                     <label>
-                                        Broadcast / remote host <span class="muted">(for base heartbeat)</span>
+                                    Extra heartbeat target (leave blank unless your vehicle's link only sends
+                                    after it hears a heartbeat)
                                     </label>
                                     <input type="text"
                                            name="broadcast_host"
-                                           value="{{ mv.get('broadcast_host', '255.255.255.255') }}">
+                                           value="{{ mv.get('broadcast_host', '') }}">
                                 </div>
                                 <div class="field">
                                     <label>

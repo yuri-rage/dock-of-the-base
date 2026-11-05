@@ -689,7 +689,7 @@ async def configure_mavlink_route(
     request: Request,
     enabled: str = Form(""),
     port: int = Form(14550),
-    broadcast_host: str = Form("255.255.255.255"),
+    broadcast_host: str = Form(""),
     sysid: int = Form(250),
     timeout_s: float = Form(20.0),
 ):
